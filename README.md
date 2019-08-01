@@ -6,8 +6,13 @@ A collection of the data generators which I created
 
 To get 3D images use
 
-    from Image_Array_And_Mask_From_Dicom import DicomImagestoData
+    from Generators import Train_Data_Generator
 
     paths = [os.path.join(base_path, 'Train', 'Contrast', 'Single_Images3D')]
 
-    test_generator = Train_Data_Generator(batch_size=batch_size, num_of_classes=num_classes,z_images=z_images,data_paths=paths,normalize_to_value=1,mean_val=80,std_val=42)
+    test_generator = Train_Data_Generator(batch_size=5, num_of_classes=2,z_images=5,
+                                      data_paths=paths_test_generator,normalize_to_value=1,expansion=10,
+                                      is_CT=is_CT, mean_val=mean_val, std_val=std_val)
+    Batch_size determines how many images are thrown in a batch together, z_images determines how many images are printed out
+    if z_images > batch_size for 2D purposes, you will get blacked out images
+    expansion asks how many images to include above and below segmented images
