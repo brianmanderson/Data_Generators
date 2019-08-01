@@ -1,26 +1,95 @@
 from keras.utils import Sequence, np_utils
-from keras.callbacks import Callback, LearningRateScheduler, ModelCheckpoint, TensorBoard
-from keras.models import load_model, Model
-import keras.backend as K
-from keras.layers.core import Lambda
-import tensorflow as tf
-from keras.backend import resize_images, categorical_crossentropy
-from keras.layers import Input, Dropout, SpatialDropout2D, ConvLSTM2D, TimeDistributed, UpSampling2D, Concatenate, \
-    SpatialDropout3D, BatchNormalization, Activation, Deconv3D, Add, Conv3D, Flatten, UpSampling3D, \
-    MaxPooling3D, ZeroPadding3D, Conv2D, Multiply, MaxPooling2D, Reshape, AveragePooling2D
-from tensorflow import Graph, Session, ConfigProto, GPUOptions
-from TensorflowUtils import load_obj, save_obj, np, remove_non_liver, get_metrics, turn_pickle_into_text, \
-    normalize_images, plot_scroll_Image, visualize
-from skimage.measure import block_reduce
-import math, warnings, cv2, os, copy, time, glob
-from scipy.ndimage import interpolation
 import matplotlib.pyplot as plt
-from skimage.morphology import label
-# from Predict_On_VGG_Unet_Module_Class import Prediction_Model_Class
-from v3_model import Deeplabv3, relu6, BilinearUpsampling
-from Keras_Regularizers import ExponentialKL, LogKL
-# from keras.applications.vgg16 import VGG16
-from tensorflow.python.client import device_lib
+from skimage import morphology
+from skimage.measure import block_reduce
+import cv2, os, copy, glob, pickle
+import numpy as np
+from scipy.ndimage import interpolation
+
+def plot_scroll_Image(x):
+    '''
+    :param x: input to view of form [rows, columns, # images]
+    :return:
+    '''
+    if x.dtype not in ['float32','float64']:
+        x = copy.deepcopy(x).astype('float32')
+    if len(x.shape) > 3:
+        x = np.squeeze(x)
+    if len(x.shape) == 3:
+        if x.shape[0] != x.shape[1]:
+            x = np.transpose(x,[1,2,0])
+        elif x.shape[0] == x.shape[2]:
+            x = np.transpose(x, [1, 2, 0])
+    fig, ax = plt.subplots(1, 1)
+    if len(x.shape) == 2:
+        x = np.expand_dims(x,axis=0)
+    tracker = IndexTracker(ax, x)
+    fig.canvas.mpl_connect('scroll_event', tracker.onscroll)
+    return fig,tracker
+    #Image is input in the form of [#images,512,512,#channels]
+
+def load_obj(path):
+    if path.find('.pkl') == -1:
+        path += '.pkl'
+    if os.path.exists(path):
+        with open(path, 'rb') as f:
+            return pickle.load(f)
+    else:
+        out = {}
+        return out
+
+class IndexTracker(object):
+    def __init__(self, ax, X):
+        self.ax = ax
+        ax.set_title('use scroll wheel to navigate images')
+
+        self.X = X
+        rows, cols, self.slices = X.shape
+        self.ind = np.where(self.X != 0)[-1]
+        if len(self.ind) > 0:
+            self.ind = self.ind[len(self.ind)//2]
+        else:
+            self.ind = self.slices//2
+
+        self.im = ax.imshow(self.X[:, :, self.ind],cmap='gray')
+        self.update()
+
+    def onscroll(self, event):
+        print("%s %s" % (event.button, event.step))
+        if event.button == 'up':
+            self.ind = (self.ind + 1) % self.slices
+        else:
+            self.ind = (self.ind - 1) % self.slices
+        self.update()
+
+    def update(self):
+        self.im.set_data(self.X[:, :, self.ind])
+        self.ax.set_ylabel('slice %s' % self.ind)
+        self.im.axes.figure.canvas.draw()
+
+
+def remove_non_liver(annotations, threshold=0.5, volume_threshold=9999999):
+    annotations = copy.deepcopy(annotations)
+    if len(annotations.shape) == 4:
+        annotations = annotations[...,0]
+    if not annotations.dtype == 'int':
+        annotations[annotations < threshold] = 0
+        annotations[annotations > 0] = 1
+        annotations = annotations.astype('int')
+    labels = morphology.label(annotations, neighbors=4)
+    area = []
+    max_val = 0
+    for i in range(1,labels.max()+1):
+        new_area = labels[labels == i].shape[0]
+        if new_area > volume_threshold:
+            continue
+        area.append(new_area)
+        if new_area == max(area):
+            max_val = i
+    labels[labels != max_val] = 0
+    labels[labels > 0] = 1
+    annotations = labels
+    return annotations
 
 
 class image_loader(object):
