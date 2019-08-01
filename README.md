@@ -5,7 +5,7 @@
 A collection of the data generators which I created
 
 To get 3D images use
-        paths = [os.path.join(base_path, 'Train', 'Contrast', 'Single_Images3D'), os.path.join(base_path, 'Train', 'Non_Contrast','Single_Images3D')]
+        paths = test
         train_generator = Train_Data_Generator(batch_size=1,
                                              whole_patient=True, shuffle=False,
                                              image_size=512, num_patients=1,z_images=z_images,
