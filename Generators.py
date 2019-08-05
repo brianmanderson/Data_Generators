@@ -159,8 +159,8 @@ class image_loader(object):
         return images_temp, annotations_temp
 
     def load_image(self, batch_size=0, image_names=None):
-        images, annotations = np.ones([batch_size, self.image_size, self.image_size])*-1000, \
-                              np.zeros([batch_size, self.image_size, self.image_size])
+        images, annotations = np.ones([batch_size, self.image_size, self.image_size],dtype='float32')*-1000, \
+                              np.zeros([batch_size, self.image_size, self.image_size],dtype='bool')
         add = 0
         start = 0
         finish = len(image_names)
@@ -216,10 +216,10 @@ class image_loader(object):
                 else:
                     images_temp = np.load(image_name)
                     annotations_temp = np.load(image_name.replace('_image.npy','_annotation.npy'))
-                self.image_dictionary[image_names[i]] = copy.deepcopy([images_temp,annotations_temp])
+                self.image_dictionary[image_names[i]] = copy.deepcopy([images_temp.astype('float32'),annotations_temp])
                 if (make_changes or not self.by_patient) and (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
                     if images_temp.shape[1] > self.image_size and images_temp.shape[2] > 500 and self.image_size != 512:
-                        images_temp[0,...] = block_reduce(images_temp[0,...], (2, 2), np.average)
+                        images_temp[0,...] = block_reduce(images_temp[0,...], (2, 2), np.average).astype('float32')
                         annotations_temp[0,...] = block_reduce(annotations_temp[0,...].astype('int'), (2, 2), np.max).astype('bool')
                     elif images_temp.shape[0] <= self.image_size / 2 or images_temp.shape[1] <= self.image_size / 2:
                         images_temp, annotations_temp = self.give_resized_images(images_temp, annotations_temp)
@@ -535,7 +535,7 @@ class Pertibation_Class:
                     M_image = self.M_image[variation]
                 if variation != 0:
                     # images = cv2.warpAffine(images,M_image, (int(shape_size_image), int(shape_size_image)))
-                    output_image = np.zeros(images.shape)
+                    output_image = np.zeros(images.shape,dtype=images.dtype)
                     if len(images.shape) > 2:
                         for image in range(images.shape[0]):
                             im = images[image, :, :]
@@ -545,7 +545,7 @@ class Pertibation_Class:
                     else:
                         output_image = cv2.warpAffine(images, M_image, (int(shape_size_image), int(shape_size_image)))
                     images = output_image
-                    output_annotation = np.zeros(annotations.shape)
+                    output_annotation = np.zeros(annotations.shape,dtype=annotations.dtype)
                     for val in range(1, int(annotations.max()) + 1):
                         temp = copy.deepcopy(annotations).astype('float32')
                         temp[temp != val] = 0
