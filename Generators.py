@@ -603,9 +603,6 @@ class Train_Data_Generator(Sequence):
             extension += '3D'
         if self.using_perturb_engine:
             extension += '\\Perturbations'
-        # self.weights = load_obj('G:\\CNN\\Data\\Data_Kelly\\class_weights.pkl')
-        # self.weights[1] = self.weights[2] = self.weights[3] = self.weights[0] = 1.
-        # self.weights[4] = self.weights[5] = 0.00001
         self.image_size = image_size
         self.batch_size = batch_size
         self.perturbations = pertubrations
@@ -1315,7 +1312,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
     def __init__(self, image_size=512, batch_size=1, perturbations=None, three_layer=True,whole_patient=True,verbose=False,
                  is_CT=True, num_classes=2, flatten=False,noise=0.0,prediction_class=None,output_size = None,
                  data_paths=None, shuffle=True, all_for_one=False, write_predictions = False,is_auto_encoder=False,
-                 num_patients=1,is_test_set=False, model_path_out='.', expansion=0, clip=0,mean_val=0, std_val=1,
+                 num_patients=1,is_test_set=False, expansion=0, clip=0,mean_val=0, std_val=1,
                  max_image_size=999,skip_correction=False, normalize_to_value=None, wanted_indexes=None, z_images=32):
         super().__init__(image_size=image_size, perturbations=perturbations, three_channel=three_layer,whole_patient=whole_patient, is_CT=is_CT,num_of_classes=num_classes,
                  data_paths=data_paths, num_patients=num_patients,is_test_set=is_test_set, expansion=expansion,shuffle=shuffle, batch_size=batch_size, all_for_one=all_for_one, wanted_indexes=wanted_indexes)
@@ -1355,7 +1352,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         self.max_image_size = max_image_size
         self.verbose = verbose
         self.write_predictions = write_predictions
-        self.model_path_out = model_path_out
         self.prediction_class = prediction_class
         self.mean_val, self.std_val = mean_val, std_val
         self.normalize_to_value = normalize_to_value
