@@ -6,11 +6,11 @@ A collection of the data generators which I created
 
 To get 3D images use
 
-    from Generators import Train_Data_Generator
+    from Generators import Train_Data_Generator2D
 
     paths = [os.path.join(base_path, 'Train', 'Contrast', 'Single_Images3D')]
 
-    test_generator = Train_Data_Generator(batch_size=5, num_of_classes=2,z_images=5,
+    test_generator = Train_Data_Generator2D(batch_size=5, num_of_classes=2,
                                       data_paths=paths_test_generator,normalize_to_value=1,expansion=10,
                                       is_CT=is_CT, mean_val=mean_val, std_val=std_val)
     Batch_size determines how many images are thrown in a batch together, z_images determines how many images are printed out
