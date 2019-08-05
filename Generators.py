@@ -94,14 +94,13 @@ def remove_non_liver(annotations, threshold=0.5, volume_threshold=9999999):
 
 class image_loader(object):
     def __init__(self,image_size=512,perturbations=None, three_channel=False, by_patient=False,
-                 is_CT=True,resize_class=None, random_start=True, final_steps=None, all_images=False):
+                 resize_class=None, random_start=True, final_steps=None, all_images=False):
         self.patient_dict_indexes = {}
         self.image_dictionary = {}
         self.resize_class = resize_class
         self.random_start = random_start
         self.by_patient = by_patient
         self.image_size = image_size
-        self.is_CT = is_CT
         if perturbations:
             self.perturbations = perturbations
             self.pertibation_class = Pertibation_Class(perturbations, [image_size, image_size])
@@ -174,10 +173,18 @@ class image_loader(object):
             if len(broken_up) == 1:
                 broken_up = file.split('/')
             broken_up = broken_up[-1].split('_')
-            slice_num = str(broken_up[-1][:-4])
-            for i in broken_up[:-1]:
-                description += i + '_'
-            description = description[:-1]
+            if broken_up[-1].find('image') == 0: # Making everything back compatible with the new style of passing data
+                slice_num = int(broken_up[-2])
+                description = ''
+                for i in broken_up[:-2]:
+                    description += i + '_'
+                description = description[:-1]
+            else:
+                slice_num = int(broken_up[-1][:-4])
+                description = ''
+                for i in broken_up[:-1]:
+                    description += i + '_'
+                description = description[:-1]
         if len(image_names) > batch_size:
             if description not in self.patient_dict_indexes:
                 start = len(image_names) - (batch_size + add)
@@ -201,24 +208,26 @@ class image_loader(object):
             if i < 0 or i > len(image_names):
                 print('start:' + str(start) + 'total images: ' + str(len(image_names)) + '_i:' + str(i))
             if image_names[i] not in self.image_dictionary:
-                data = np.load(image_names[i])
-                self.image_dictionary[image_names[i]] = copy.deepcopy(data)
-                if (make_changes or not self.by_patient) and (
-                        data.shape[1] != self.image_size or data.shape[2] != self.image_size):
-                    images_temp = data[0, :, :]
-                    annotations_temp = data[1, :, :]
-                    if data[0].shape[0] > self.image_size and data[0].shape[0] > 500 and self.image_size != 512:
-                        images_temp = block_reduce(images_temp, (2, 2), np.average)
-                        annotations_temp = block_reduce(annotations_temp.astype('int'), (2, 2), np.max).astype('int')
+                image_name = image_names[i]
+                if image_name.find('_image.npy') == -1:
+                    data = np.load(image_name)
+                    images_temp = data[0, :, :][None,...]
+                    annotations_temp = data[1, :, :][None,...]
+                else:
+                    images_temp = np.load(image_name)
+                    annotations_temp = np.load(image_name.replace('_image.npy','_annotation.npy'))
+                self.image_dictionary[image_names[i]] = copy.deepcopy([images_temp,annotations_temp])
+                if (make_changes or not self.by_patient) and (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
+                    if images_temp.shape[1] > self.image_size and images_temp.shape[2] > 500 and self.image_size != 512:
+                        images_temp[0,...] = block_reduce(images_temp[0,...], (2, 2), np.average)
+                        annotations_temp[0,...] = block_reduce(annotations_temp[0,...].astype('int'), (2, 2), np.max).astype('bool')
                     elif images_temp.shape[0] <= self.image_size / 2 or images_temp.shape[1] <= self.image_size / 2:
                         images_temp, annotations_temp = self.give_resized_images(images_temp, annotations_temp)
                     if images_temp.shape[0] != 1:
-                        images_temp = np.expand_dims(images_temp, axis=0)
-                        annotations_temp = np.expand_dims(annotations_temp, axis=0)
+                        images_temp = images_temp[None,...]
+                        annotations_temp = annotations_temp[None,...]
                     images_temp, annotations_temp = self.convert_image_size(images_temp, annotations_temp,
                                                                             self.image_size)
-                else:
-                    images_temp, annotations_temp = data[0][None, ...], data[1][None, ...]
                 self.image_dictionary[image_names[i]] = copy.deepcopy([images_temp,annotations_temp])
             else:
                 images_temp, annotations_temp = copy.deepcopy(self.image_dictionary[image_names[i]])
@@ -335,7 +344,7 @@ class image_loader(object):
 
 class Data_Set_Reader(image_loader):
     def __init__(self,path=None,image_size=512,perturbations=None, three_channel=False, by_patient=False,verbose=True,
-                 is_CT=True,num_patients=1, resize_class=None,is_test_set=False, num_channels=0, random_start=True,
+                 num_patients=1, resize_class=None,is_test_set=False, random_start=True,
                  expansion = 0,final_steps=None, shuffle_images=True, wanted_indexes=None):
         '''
         :param path:
@@ -344,11 +353,9 @@ class Data_Set_Reader(image_loader):
         :param three_channel:
         :param by_patient:
         :param verbose:
-        :param is_CT:
         :param num_patients:
         :param resize_class:
         :param is_test_set:
-        :param num_channels:
         :param random_start:
         :param expansion:
         :param final_steps:
@@ -356,12 +363,12 @@ class Data_Set_Reader(image_loader):
         :param wanted_indexes: a tuple of indexes wanted (2) will pull disease only if 1 is liver
         '''
         super().__init__(image_size=image_size,perturbations=perturbations, three_channel=three_channel,
-                              by_patient=by_patient,is_CT=is_CT,resize_class=resize_class, random_start=random_start,
+                              by_patient=by_patient,resize_class=resize_class, random_start=random_start,
                               final_steps=final_steps, all_images=is_test_set)
         self.wanted_indexes = wanted_indexes
         self.shuffle_images = shuffle_images
         self.expansion = expansion
-        if not is_CT and num_channels != 0 and resize_class:
+        if resize_class:
             self.resize_class = resize_class
         self.start_stop_dict = {}
         self.num_patients = num_patients
@@ -376,7 +383,7 @@ class Data_Set_Reader(image_loader):
                 self.start_stop_dict = load_obj(os.path.join(path, 'descriptions_start_and_stop.pkl'))
             if os.path.exists(path):
                 for file in os.listdir(path):
-                    if file.find('.npy') != -1:
+                    if file.find('.npy') != -1 and file.find('_annotation.npy') == -1:
                         self.file_list.append(os.path.join(path, file))
             elif self.verbose:
                 print(path)
@@ -397,11 +404,18 @@ class Data_Set_Reader(image_loader):
             if len(broken_up) == 1:
                 broken_up = file.split('/')
             broken_up = broken_up[-1].split('_')
-            slice_num = int(broken_up[-1][:-4])
-            description = ''
-            for i in broken_up[:-1]:
-                description += i + '_'
-            description = description[:-1]
+            if broken_up[-1].find('image') == 0: # Making everything back compatible with the new style of passing data
+                slice_num = int(broken_up[-2])
+                description = ''
+                for i in broken_up[:-2]:
+                    description += i + '_'
+                description = description[:-1]
+            else:
+                slice_num = int(broken_up[-1][:-4])
+                description = ''
+                for i in broken_up[:-1]:
+                    description += i + '_'
+                description = description[:-1]
             start, stop = None, None
             values = None
             if description in self.start_stop_dict.keys() and description not in self.start_stop_dict_local.keys():
@@ -533,12 +547,11 @@ class Pertibation_Class:
                     images = output_image
                     output_annotation = np.zeros(annotations.shape)
                     for val in range(1, int(annotations.max()) + 1):
-                        temp = copy.deepcopy(annotations).astype('int')
+                        temp = copy.deepcopy(annotations).astype('float32')
                         temp[temp != val] = 0
                         temp[temp > 0] = 1
                         temp[temp > 0.1] = val
                         temp[temp < val] = 0
-                        temp = temp.astype('float32')
                         if len(annotations.shape) > 2:
                             for image in range(annotations.shape[0]):
                                 im = temp[image, :, :]
@@ -576,9 +589,9 @@ class Pertibation_Class:
         return output_image, output_annotation
 
 
-class Train_Data_Generator(Sequence):
-    def __init__(self, image_size=256, batch_size=5, pertubrations=None, num_of_classes=2, data_paths=None,clip=0,expansion=0,
-                 is_CT=True, whole_patient=False, shuffle=True, flatten=False, noise=0.0, normalize_to_255=False,z_images=16,
+class Train_Data_Generator2D(Sequence):
+    def __init__(self, image_size=512, batch_size=5, pertubrations=None, num_of_classes=2, data_paths=None,clip=0,expansion=0,
+                 whole_patient=False, shuffle=True, flatten=False, noise=0.0, normalize_to_255=False,z_images=16,
                  all_for_one=False, three_channel=True, using_perturb_engine=False,on_VGG=False,normalize_to_value=None,
                  resize_class=None,add_filename_extension=True, is_test_set=False, reduced_interest=False, mean_val=0, std_val=1):
         self.z_images = z_images
@@ -595,17 +608,12 @@ class Train_Data_Generator(Sequence):
         self.all_for_one = all_for_one
         self.num_of_classes = num_of_classes
         self.on_VGG = on_VGG
-        extension = 'Single_Images'
+        extension = 'Single_Images3D'
         self.mean_val = mean_val
         self.std_val = std_val
         self.normalize_to_255 = normalize_to_255
-        if whole_patient:
-            extension += '3D'
         if self.using_perturb_engine:
             extension += '\\Perturbations'
-        # self.weights = load_obj('G:\\CNN\\Data\\Data_Kelly\\class_weights.pkl')
-        # self.weights[1] = self.weights[2] = self.weights[3] = self.weights[0] = 1.
-        # self.weights[4] = self.weights[5] = 0.00001
         self.image_size = image_size
         self.batch_size = batch_size
         self.perturbations = pertubrations
@@ -615,12 +623,12 @@ class Train_Data_Generator(Sequence):
             if path.find(extension) == -1 and add_filename_extension:
                 path = os.path.join(path,extension)
             models[path] = Data_Set_Reader(shuffle_images=shuffle,expansion=expansion,
-                path=path,is_CT=is_CT, by_patient=whole_patient, is_test_set=is_test_set)
+                path=path, by_patient=whole_patient, is_test_set=is_test_set)
         self.training_models = models
         self.train_dataset_reader = Data_Set_Reader(perturbations=self.perturbations,verbose=False,
-                                                    image_size=image_size,three_channel=three_channel,is_CT=is_CT,
+                                                    image_size=image_size,three_channel=three_channel,
                                                     by_patient=whole_patient,resize_class=resize_class, is_test_set=is_test_set,
-                                                    num_channels=1, shuffle_images=shuffle)
+                                                    shuffle_images=shuffle)
         self.get_image_lists()
 
     def get_image_lists(self):
@@ -645,7 +653,7 @@ class Train_Data_Generator(Sequence):
         self.train_dataset_reader.file_batches = self.image_list
 
     def __getitem__(self,index):
-        self.train_dataset_reader.load_images(index, batch_size=self.z_images)
+        self.train_dataset_reader.load_images(index, batch_size=self.batch_size) # wanting multi-patient batches, use the 3D model
         train_images, annotations = self.train_dataset_reader.return_images()
         # Center it about VGG 19
         if self.reduced_interest:
@@ -1187,14 +1195,13 @@ def get_bounding_box(train_images_out_base, train_annotations_out_base, include_
 
 class Train_Data_Generator_class(Sequence):
 
-    def __init__(self, image_size=512, perturbations=None, three_channel=True,whole_patient=True, is_CT=True,num_of_classes=2,wanted_indexes=None,
+    def __init__(self, image_size=512, perturbations=None, three_channel=True,whole_patient=True,num_of_classes=2,wanted_indexes=None,
                  data_paths=None, num_patients=1,is_test_set=False, expansion=0,shuffle=False, batch_size=1, all_for_one=False):
         '''
         :param image_size: Image size
         :param pertubrations: dictionary of perturbations
         :param three_layer: make three layer
         :param whole_patient: want whole patient
-        :param is_CT: is it CT
         :param data_paths: data paths
         :param only_valid:
         :param num_patients:
@@ -1215,13 +1222,13 @@ class Train_Data_Generator_class(Sequence):
         self.wanted_indexes = wanted_indexes
         self.train_dataset_reader = Data_Set_Reader(perturbations=perturbations,
                                                     image_size=image_size, three_channel=three_channel,
-                                                    by_patient=whole_patient, is_CT=is_CT,
+                                                    by_patient=whole_patient,
                                                     num_patients=num_patients, is_test_set=is_test_set,
                                                     expansion=expansion,
                                                     final_steps=None, verbose=False, wanted_indexes=wanted_indexes)
-        self.training_models = self.get_training_models(data_paths,is_CT,is_test_set,whole_patient,num_patients,expansion, wanted_indexes)
+        self.training_models = self.get_training_models(data_paths,is_test_set,whole_patient,num_patients,expansion, wanted_indexes)
 
-    def get_training_models(self, data_paths, is_CT, is_test_set, whole_patient, num_patients, expansion, wanted_indexes):
+    def get_training_models(self, data_paths, is_test_set, whole_patient, num_patients, expansion, wanted_indexes):
         models = {}
         for path in data_paths:
             if path.find('Single_Images3D') == -1:
@@ -1229,7 +1236,7 @@ class Train_Data_Generator_class(Sequence):
             if len(os.listdir(path)) == 0:
                 print('Nothin in data path:' + path)
             models[path] = Data_Set_Reader(
-                path=path,is_CT=is_CT, by_patient=whole_patient,  num_patients=num_patients,
+                path=path, by_patient=whole_patient,  num_patients=num_patients,
                 is_test_set=is_test_set, expansion=expansion, wanted_indexes=wanted_indexes) #Always 1
             self.train_dataset_reader.patient_dict_indexes.update(models[path].patient_dict_indexes)
         return models
@@ -1313,21 +1320,20 @@ class Train_Data_Generator_class(Sequence):
 class Train_Data_Generator3D(Train_Data_Generator_class):
 
     def __init__(self, image_size=512, batch_size=1, perturbations=None, three_layer=True,whole_patient=True,verbose=False,
-                 is_CT=True, num_classes=2, flatten=False,noise=0.0,prediction_class=None,output_size = None,
+                 num_classes=2, flatten=False,noise=0.0,prediction_class=None,output_size = None,
                  data_paths=None, shuffle=True, all_for_one=False, write_predictions = False,is_auto_encoder=False,
                  num_patients=1,is_test_set=False, model_path_out='.', expansion=0, clip=0,mean_val=0, std_val=1,
                  max_image_size=999,skip_correction=False, normalize_to_value=None, wanted_indexes=None, z_images=32):
-        super().__init__(image_size=image_size, perturbations=perturbations, three_channel=three_layer,whole_patient=whole_patient, is_CT=is_CT,num_of_classes=num_classes,
+        super().__init__(image_size=image_size, perturbations=perturbations, three_channel=three_layer,whole_patient=whole_patient, num_of_classes=num_classes,
                  data_paths=data_paths, num_patients=num_patients,is_test_set=is_test_set, expansion=expansion,shuffle=shuffle, batch_size=batch_size, all_for_one=all_for_one, wanted_indexes=wanted_indexes)
         '''
         :param image_size: Size of the image that you want as output, recommend 512 or 256
         :param batch_size: Number of batches, usually stuck at 1 unless specify generator.random_start = False outside of this
         :param pertubrations: What perturbations do you want to perform? {'Rotation': range(-5, 6, 1), 'Shift': range(-5, 6, 1)}
-        :param three_layer: Make this a 3 layer output
+        :param three_layer: Make this a 3 channel output
         :param whole_patient: Do you want the whole patient
         :param vgg_model: Use the vgg model as pre-prediction? (Out dated)
         :param use_vgg: Out dated
-        :param is_CT: Is this a CT scan
         :param num_classes: Number of output classes
         :param flatten: Flatten the data
         :param data_paths: Paths to data
