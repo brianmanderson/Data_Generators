@@ -160,7 +160,7 @@ class image_loader(object):
 
     def load_image(self, batch_size=0, image_names=None):
         images, annotations = np.ones([batch_size, self.image_size, self.image_size],dtype='float32')*-1000, \
-                              np.zeros([batch_size, self.image_size, self.image_size],dtype='bool')
+                              np.zeros([batch_size, self.image_size, self.image_size],dtype='int8')
         add = 0
         start = 0
         finish = len(image_names)
@@ -220,7 +220,7 @@ class image_loader(object):
                 if (make_changes or not self.by_patient) and (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
                     if images_temp.shape[1] > self.image_size and images_temp.shape[2] > 500 and self.image_size != 512:
                         images_temp[0,...] = block_reduce(images_temp[0,...], (2, 2), np.average).astype('float32')
-                        annotations_temp[0,...] = block_reduce(annotations_temp[0,...].astype('int'), (2, 2), np.max).astype('bool')
+                        annotations_temp[0,...] = block_reduce(annotations_temp[0,...].astype('int'), (2, 2), np.max).astype('int8')
                     elif images_temp.shape[0] <= self.image_size / 2 or images_temp.shape[1] <= self.image_size / 2:
                         images_temp, annotations_temp = self.give_resized_images(images_temp, annotations_temp)
                     if images_temp.shape[0] != 1:
@@ -1384,8 +1384,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
     def __getitem__(self, index):
         file_name = self.train_dataset_reader.file_batches[index][0][0]
         split_up = file_name.split('\\')
-        if len(split_up) == 1:
-            split_up = file_name.split('/')
         non_noisy_image = None
 
         self.train_dataset_reader.load_images(index,self.z_images) # how many images to pull
