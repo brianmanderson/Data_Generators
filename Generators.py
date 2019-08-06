@@ -103,7 +103,7 @@ class image_loader(object):
         self.image_size = image_size
         if perturbations:
             self.perturbations = perturbations
-            self.pertibation_class = Pertibation_Class(perturbations, [image_size, image_size])
+            self.pertubartion_class = Pertubartion_Class(perturbations, [image_size, image_size])
         self.perturbations = perturbations
         self.three_channel = three_channel
         self.final_steps = final_steps
@@ -237,9 +237,9 @@ class image_loader(object):
         if self.perturbations:
             if not self.by_patient:
                 for i in range(len(image_names)):
-                    images[i,:,:], annotations[i,:,:] = self.pertibation_class.make_pertibations(images[i,:,:],annotations[i,:,:])
+                    images[i,:,:], annotations[i,:,:] = self.pertubartion_class.make_pertubartions(images[i,:,:],annotations[i,:,:])
             else:
-                images, annotations = self.pertibation_class.make_pertibations(images,annotations)
+                images, annotations = self.pertubartion_class.make_pertubartions(images,annotations)
 
         if self.three_channel and images.shape[-1] != 3:
             images_stacked = np.stack([images,images,images],axis=-1)
@@ -512,20 +512,20 @@ class Data_Set_Reader(image_loader):
             self.file_batches = list(np.asarray(self.file_batches)[perm])
 
 
-class Pertibation_Class:
-    def __init__(self,pertibations,image_shape):
-        self.peribations = pertibations
+class Pertubartion_Class:
+    def __init__(self,pertubartions,image_shape):
+        self.pertubartions = pertubartions
         self.output_annotation_template = np.zeros(image_shape)
         self.output_images_template = np.zeros(image_shape)
         self.M_image = {}
         self.image_shape = image_shape
 
-    def make_pertibations(self,images,annotations):
+    def make_pertubartions(self,images,annotations):
         min_val = np.min(images)
         images -= min_val # This way any rotation gets a 0, irrespective of previous normalization
-        for key in self.peribations.keys():
+        for key in self.pertubartions.keys():
 
-            variation = self.peribations[key][np.random.randint(0, len(self.peribations[key]))]
+            variation = self.pertubartions[key][np.random.randint(0, len(self.pertubartions[key]))]
             if key == 'Rotation':
                 shape_size_image = shape_size_annotation = self.image_shape[1]
                 if variation not in self.M_image.keys():
@@ -540,24 +540,22 @@ class Pertibation_Class:
                         for image in range(images.shape[0]):
                             im = images[image, :, :]
                             if np.max(im) != 0:
-                                im = cv2.warpAffine(im, M_image, (int(shape_size_image), int(shape_size_image)))
+                                im = cv2.warpAffine(im, M_image, (int(shape_size_image), int(shape_size_image)),flags=cv2.INTER_LINEAR)
                             output_image[image, :, :] = im
                     else:
-                        output_image = cv2.warpAffine(images, M_image, (int(shape_size_image), int(shape_size_image)))
+                        output_image = cv2.warpAffine(images, M_image, (int(shape_size_image), int(shape_size_image)),flags=cv2.INTER_LINEAR)
                     images = output_image
                     output_annotation = np.zeros(annotations.shape,dtype=annotations.dtype)
                     for val in range(1, int(annotations.max()) + 1):
-                        temp = copy.deepcopy(annotations).astype('float32')
+                        temp = copy.deepcopy(annotations).astype('int')
                         temp[temp != val] = 0
                         temp[temp > 0] = 1
-                        temp[temp > 0.1] = val
-                        temp[temp < val] = 0
                         if len(annotations.shape) > 2:
                             for image in range(annotations.shape[0]):
                                 im = temp[image, :, :]
                                 if np.max(im) != 0:
                                     im = cv2.warpAffine(im, M_image,
-                                                        (int(shape_size_annotation), int(shape_size_annotation)))
+                                                        (int(shape_size_annotation), int(shape_size_annotation)),flags=cv2.INTER_NEAREST)
                                     im[im > 0.1] = val
                                     im[im < val] = 0
                                     output_annotation[image, :, :][im == val] = val
@@ -565,7 +563,7 @@ class Pertibation_Class:
                             im = temp
                             if np.max(im) != 0:
                                 im = cv2.warpAffine(im, M_image,
-                                                    (int(shape_size_annotation), int(shape_size_annotation)))
+                                                    (int(shape_size_annotation), int(shape_size_annotation)),flags=cv2.INTER_NEAREST)
                                 im[im > 0.1] = val
                                 im[im < val] = 0
                                 output_annotation[im == val] = val
@@ -573,7 +571,7 @@ class Pertibation_Class:
                     annotations = output_annotation
             elif key == 'Shift':
                 variation_row = variation
-                variation_col = self.peribations[key][np.random.randint(-len(self.peribations[key]), len(self.peribations[key]))]
+                variation_col = self.pertubartions[key][np.random.randint(-len(self.pertubartions[key]), len(self.pertubartions[key]))]
                 if len(images.shape) == 2:
                     output_image = interpolation.shift(images,[variation_row, variation_col])
                     annotations = interpolation.shift(annotations.astype('int'),
@@ -908,7 +906,7 @@ class Train_DVF_Generator(Sequence):
         self.M_image = {}
         self.noise = noise
 
-    def make_pertibations(self,images,variation,is_annotations=False):
+    def make_pertubartion(self,images,variation,is_annotations=False):
         shape_size_image = images.shape[1]
         if variation not in self.M_image.keys():
             M_image = cv2.getRotationMatrix2D((int(shape_size_image) / 2, int(shape_size_image) / 2), variation,1)
@@ -948,8 +946,7 @@ class Train_DVF_Generator(Sequence):
             images = np.concatenate([primary_liver, secondary_liver], axis=-1)[None,...]
         else:
             primary_liver, secondary_liver  = np.load(path.replace('field_reduced','liver_primary_reduced')),\
-                                              np.load(path.replace('field_reduced','liver_secondary_reduced')),\
-
+                                              np.load(path.replace('field_reduced','liver_secondary_reduced'))
         field = np.load(path)
         if self.get_CT_images:
             primary, secondary = np.load(path.replace('field_reduced','primary_reduced')), \
@@ -964,11 +961,11 @@ class Train_DVF_Generator(Sequence):
             key = 'Rotation'
             variation = self.perturbations[key][np.random.randint(0, len(self.perturbations[key]))]
             if self.get_CT_images:
-                primary = self.make_pertibations(images=primary,variation=variation,is_annotations=False)
-                secondary = self.make_pertibations(images=secondary, variation=variation, is_annotations=False)
-            primary_liver = self.make_pertibations(images=primary_liver,variation=variation,is_annotations=True)
-            secondary_liver = self.make_pertibations(images=secondary_liver, variation=variation, is_annotations=True)
-            field = self.make_pertibations(images=field, variation=variation, is_annotations=False)
+                primary = self.make_pertubartion(images=primary,variation=variation,is_annotations=False)
+                secondary = self.make_pertubartion(images=secondary, variation=variation, is_annotations=False)
+            primary_liver = self.make_pertubartion(images=primary_liver,variation=variation,is_annotations=True)
+            secondary_liver = self.make_pertubartion(images=secondary_liver, variation=variation, is_annotations=True)
+            field = self.make_pertubartion(images=field, variation=variation, is_annotations=False)
         self.primary_liver = primary_liver
         # min_z_p, max_z_p, min_r_p, max_r_p, min_c_p, max_c_p = get_bounding_box_indexes(np.expand_dims(primary_liver,axis=-1))
         # self.z_start, self.z_stop, self.r_start, self.r_stop, self.c_start, self.c_stop = min_z_p, max_z_p, min_r_p, max_r_p, min_c_p, max_c_p
