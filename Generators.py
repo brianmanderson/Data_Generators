@@ -231,8 +231,8 @@ class image_loader(object):
                 self.image_dictionary[image_names[i]] = copy.deepcopy([images_temp,annotations_temp])
             else:
                 images_temp, annotations_temp = copy.deepcopy(self.image_dictionary[image_names[i]])
-            images[index] = images_temp
-            annotations[index] = annotations_temp
+            images[index] = np.squeeze(images_temp)
+            annotations[index] = np.squeeze(annotations_temp)
 
         if self.perturbations:
             if not self.by_patient:
@@ -588,7 +588,7 @@ class Pertubartion_Class:
 
 
 class Train_Data_Generator2D(Sequence):
-    def __init__(self, image_size=512, batch_size=5, pertubrations=None, num_of_classes=2, data_paths=None,clip=0,expansion=0,
+    def __init__(self, image_size=512, batch_size=5, perturbations=None, num_of_classes=2, data_paths=None,clip=0,expansion=0,
                  whole_patient=False, shuffle=True, flatten=False, noise=0.0, normalize_to_255=False,z_images=16,
                  all_for_one=False, three_channel=True, using_perturb_engine=False,on_VGG=False,normalize_to_value=None,
                  resize_class=None,add_filename_extension=True, is_test_set=False, reduced_interest=False, mean_val=0, std_val=1):
@@ -614,7 +614,7 @@ class Train_Data_Generator2D(Sequence):
             extension += '\\Perturbations'
         self.image_size = image_size
         self.batch_size = batch_size
-        self.perturbations = pertubrations
+        self.perturbations = perturbations
         self.image_list = []
         models = {}
         for path in data_paths:
@@ -1196,7 +1196,6 @@ class Train_Data_Generator_class(Sequence):
                  data_paths=None, num_patients=1,is_test_set=False, expansion=0,shuffle=False, batch_size=1, all_for_one=False):
         '''
         :param image_size: Image size
-        :param pertubrations: dictionary of perturbations
         :param three_layer: make three layer
         :param whole_patient: want whole patient
         :param data_paths: data paths
@@ -1326,7 +1325,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         '''
         :param image_size: Size of the image that you want as output, recommend 512 or 256
         :param batch_size: Number of batches, usually stuck at 1 unless specify generator.random_start = False outside of this
-        :param pertubrations: What perturbations do you want to perform? {'Rotation': range(-5, 6, 1), 'Shift': range(-5, 6, 1)}
         :param three_layer: Make this a 3 channel output
         :param whole_patient: Do you want the whole patient
         :param vgg_model: Use the vgg model as pre-prediction? (Out dated)
