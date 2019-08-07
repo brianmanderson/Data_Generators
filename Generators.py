@@ -216,7 +216,6 @@ class image_loader(object):
                 else:
                     images_temp = np.load(image_name)
                     annotations_temp = np.load(image_name.replace('_image.npy','_annotation.npy'))
-                self.image_dictionary[image_names[i]] = copy.deepcopy([images_temp.astype('float32'),annotations_temp])
                 if (make_changes or not self.by_patient) or (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
                     if images_temp.shape[1] > self.image_size and images_temp.shape[2] > self.image_size:
                         images_temp = block_reduce(images_temp[0,...], (2, 2), np.average).astype('float32')[None,...]
@@ -228,11 +227,12 @@ class image_loader(object):
                         annotations_temp = annotations_temp[None,...]
                     images_temp, annotations_temp = self.convert_image_size(images_temp, annotations_temp,
                                                                             self.image_size)
-                self.image_dictionary[image_names[i]] = copy.deepcopy([images_temp,annotations_temp])
+                self.image_dictionary[image_names[i]] = copy.deepcopy([images_temp.astype('float32'), annotations_temp])
             else:
                 images_temp, annotations_temp = copy.deepcopy(self.image_dictionary[image_names[i]])
             images[index] = np.squeeze(images_temp)
             annotations[index] = np.squeeze(annotations_temp)
+
 
         if self.perturbations:
             if not self.by_patient:
@@ -675,10 +675,10 @@ class Train_Data_Generator2D(Sequence):
             train_images = (train_images-self.mean_val)/self.std_val
             if self.noise != 0:
                 train_images += self.noise * np.random.normal(loc=0.0, scale=1.0, size=train_images.shape)
-            train_images[train_images>5] = 5
-            train_images[train_images<-5] = -5 # 6 sigma
+            train_images[train_images>3.55] = 3.55
+            train_images[train_images<-3.55] = -3.55 # 6 sigma
             if self.normalize_to_255:
-                train_images = (train_images + 5)/10
+                train_images = (train_images + 3.55)/(3.55*2)
                 train_images *= 255
                 train_images[train_images<0] = 0
                 train_images[train_images>255] = 255
