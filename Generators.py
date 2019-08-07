@@ -1409,10 +1409,10 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
                 train_images_out[train_images_out < -3.55] = -3.55
                 # train_images_out[train_annotations_out[..., -1] == 0] = 0 # Don't mask training images
                 if self.normalize_to_value:
-                    train_images_out = (train_images_out - -3.55) / (3.55--3.55) * self.normalize_to_value
+                    train_images_out = (train_images_out - -3.55) / (2*3.55) * self.normalize_to_value
                     # train_images_out[train_annotations_out[..., -1] == 0] = 0
                     if self.is_auto_encoder:
-                        non_noisy_image = (non_noisy_image - -3.55) / (3.55--3.55) * self.normalize_to_value
+                        non_noisy_image = (non_noisy_image - -3.55) / (2*3.55) * self.normalize_to_value
                         non_noisy_image[train_annotations_out[..., -1] == 0] = 0
                         # non_noisy_image[train_annotations_out[..., -1] == 0] = 0 # Leave all pixels involved
                         if self.flatten:
