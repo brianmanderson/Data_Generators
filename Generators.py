@@ -157,7 +157,6 @@ class image_loader(object):
         images_temp = images_temp[:, :, :, 0]
         annotations_temp = annotations_temp[:, :, :, 0]
         return images_temp, annotations_temp
-
     def load_image(self, batch_size=0, image_names=None):
         images, annotations = np.ones([batch_size, self.image_size, self.image_size],dtype='float32')*-1000, \
                               np.zeros([batch_size, self.image_size, self.image_size],dtype='int8')
@@ -186,6 +185,7 @@ class image_loader(object):
                     description += i + '_'
                 description = description[:-1]
         if len(image_names) > batch_size:
+            print('looking here')
             if description not in self.patient_dict_indexes:
                 start = len(image_names) - (batch_size + add)
                 start = np.random.randint(start)
@@ -318,26 +318,27 @@ class image_loader(object):
 
     def load_images(self,index,batch_size=0):
         if self.by_patient:
-            self.image_names_all = self.file_batches[index]
-            if type(self.image_names_all[0]) != list:
-                self.image_names_all = [self.image_names_all]
-            self.image_names = self.image_names_all[0]
+            image_names_all = self.file_batches[index]
+            if type(image_names_all[0]) != list:
+                image_names_all = [image_names_all]
+            image_names = image_names_all[0]
             if self.all_images:
-                batch_size = len(self.image_names)
-            images_out, annotations_out = self.load_image(batch_size=batch_size, image_names=self.image_names)
-            if len(self.image_names_all) > 1:
+                batch_size = len(image_names)
+            images_out, annotations_out = self.load_image(batch_size=batch_size, image_names=image_names)
+            if len(image_names_all) > 1:
                 images_out = np.expand_dims(images_out,axis=0)
                 annotations_out = np.expand_dims(annotations_out,axis=0)
-            for i in range(1,len(self.image_names_all)):
-                self.image_names = self.image_names_all[i]
-                images, annotations = self.load_image(batch_size=batch_size, image_names=self.image_names)
+            for i in range(1,len(image_names_all)):
+                image_names = image_names_all[i]
+                images, annotations = self.load_image(batch_size=batch_size, image_names=image_names)
                 images_out = np.concatenate([images_out,np.expand_dims(images,axis=0)],axis=0)
                 annotations_out = np.concatenate([annotations_out, np.expand_dims(annotations, axis=0)], axis=0)
-            self.images = images_out
-            self.annotations = annotations_out
         else:
-            self.image_names = self.file_batches[index]
-            self.images, self.annotations = self.load_image(batch_size=batch_size, image_names=self.image_names)
+            image_names = self.file_batches[index]
+            images_out, annotations_out = self.load_image(batch_size=batch_size, image_names=image_names)
+        self.images = images_out
+        self.annotations = annotations_out
+        return images_out, annotations_out
 
     def return_images(self):
         return self.images, self.annotations
@@ -651,8 +652,7 @@ class Train_Data_Generator2D(Sequence):
         self.train_dataset_reader.file_batches = self.image_list
 
     def __getitem__(self,index):
-        self.train_dataset_reader.load_images(index, batch_size=self.batch_size) # wanting multi-patient batches, use the 3D model
-        train_images, annotations = self.train_dataset_reader.return_images()
+        train_images, annotations = self.train_dataset_reader.load_images(index, batch_size=self.batch_size) # wanting multi-patient batches, use the 3D model
         # Center it about VGG 19
         if self.reduced_interest:
             for i in range(train_images.shape[-1]):
@@ -1208,6 +1208,7 @@ class Train_Data_Generator_class(Sequence):
         :param final_steps:
         :param save_and_load:
         '''
+        self.max_patients = np.inf
         self.image_size = image_size
         self.shuffle = shuffle
         self.batch_size = batch_size
@@ -1265,8 +1266,8 @@ class Train_Data_Generator_class(Sequence):
         pass
 
     def __len__(self):
-        int(len(self.image_list))
-        return int(len(self.image_list))
+        num = min([self.max_patients,int(len(self.image_list))])
+        return num
 
     def on_epoch_end(self):
         self.get_image_lists()
@@ -1380,8 +1381,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         file_name = self.train_dataset_reader.file_batches[index][0][0]
         non_noisy_image = None
 
-        self.train_dataset_reader.load_images(index,self.z_images) # how many images to pull
-        train_images_full_size, train_annotations_full_size = self.train_dataset_reader.return_images()
+        train_images_full_size, train_annotations_full_size = self.train_dataset_reader.load_images(index,self.z_images) # how many images to pull
         if not self.skip_correction:
             if len(train_images_full_size.shape) == 5:
                 train_images_out, train_annotations_out = np.empty(train_images_full_size.shape), np.empty(train_images_full_size.shape[:-1] + (self.num_of_classes,))
@@ -1429,6 +1429,9 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
             if self.loaded_model:
                 train_images_out = self.loaded_model.predict([train_images_out, np.ones(train_annotations_out.shape[:-1])[...,None]])
             return [train_images_out, train_annotations_out[...,-1][...,None]], non_noisy_image
+        if train_images_out.shape[:-1] != train_annotations_out.shape[:-1]:
+            print(file_name)
+            x,y = self.__getitem__(index)
         return train_images_out, train_annotations_out
 
 
