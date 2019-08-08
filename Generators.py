@@ -589,7 +589,7 @@ class Pertubartion_Class:
 
 class Train_Data_Generator2D(Sequence):
     def __init__(self, image_size=512, batch_size=5, perturbations=None, num_of_classes=2, data_paths=None,clip=0,expansion=0,
-                 whole_patient=False, shuffle=True, flatten=False, noise=0.0, normalize_to_255=False,z_images=16,
+                 whole_patient=False, shuffle=False, flatten=False, noise=0.0, normalize_to_255=False,z_images=16,
                  all_for_one=False, three_channel=True, using_perturb_engine=False,on_VGG=False,normalize_to_value=None,
                  resize_class=None,add_filename_extension=True, is_test_set=False, reduced_interest=False, mean_val=0, std_val=1):
         self.z_images = z_images
@@ -1317,7 +1317,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
 
     def __init__(self, image_size=512, batch_size=1, perturbations=None, three_layer=True,whole_patient=True,verbose=False,
                  num_classes=2, flatten=False,noise=0.0,prediction_class=None,output_size = None,
-                 data_paths=None, shuffle=True, all_for_one=False, write_predictions = False,is_auto_encoder=False,
+                 data_paths=None, shuffle=False, all_for_one=False, write_predictions = False,is_auto_encoder=False,
                  num_patients=1,is_test_set=False, expansion=0, clip=0,mean_val=0, std_val=1,
                  max_image_size=999,skip_correction=False, normalize_to_value=None, wanted_indexes=None, z_images=32):
         super().__init__(image_size=image_size, perturbations=perturbations, three_channel=three_layer,whole_patient=whole_patient, num_of_classes=num_classes,
