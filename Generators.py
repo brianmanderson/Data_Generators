@@ -1,10 +1,19 @@
 from keras.utils import Sequence, np_utils
+import keras.backend as K
+from keras.models import load_model
 import matplotlib.pyplot as plt
 from skimage import morphology
 from skimage.measure import block_reduce
 import cv2, os, copy, glob, pickle
 import numpy as np
+import tensorflow as tf
+from tensorflow.compat.v1 import Graph, Session, ConfigProto, GPUOptions
 from scipy.ndimage import interpolation
+
+def dice_coef_3D(y_true, y_pred, smooth=0.0001):
+    intersection = K.sum(y_true[...,1:] * y_pred[...,1:])
+    union = K.sum(y_true[...,1:]) + K.sum(y_pred[...,1:])
+    return (2. * intersection + smooth) / (union + smooth)
 
 def plot_scroll_Image(x):
     '''
@@ -185,7 +194,7 @@ class image_loader(object):
                     description += i + '_'
                 description = description[:-1]
         if len(image_names) > batch_size:
-            print('looking here')
+
             if description not in self.patient_dict_indexes:
                 start = len(image_names) - (batch_size + add)
                 start = np.random.randint(start)
@@ -594,6 +603,7 @@ class Train_Data_Generator2D(Sequence):
                  all_for_one=False, three_channel=True, using_perturb_engine=False,on_VGG=False,normalize_to_value=None,
                  resize_class=None,add_filename_extension=True, is_test_set=False, reduced_interest=False, mean_val=0, std_val=1):
         self.z_images = z_images
+        self.max_images = np.inf
         self.normalize_to_value = normalize_to_value
         self.reduced_interest = reduced_interest
         self.resize_class = resize_class
@@ -699,7 +709,7 @@ class Train_Data_Generator2D(Sequence):
 
     def __len__(self):
         int(len(self.image_list))
-        return int(len(self.image_list))
+        return min([self.max_images,int(len(self.image_list))])
 
     def on_epoch_end(self):
         self.get_image_lists()
@@ -1190,6 +1200,7 @@ def get_bounding_box(train_images_out_base, train_annotations_out_base, include_
     else:
         return min_z, max_z, min_row, max_row, min_col, max_col
 
+
 class Train_Data_Generator_class(Sequence):
 
     def __init__(self, image_size=512, perturbations=None, three_channel=True,whole_patient=True,num_of_classes=2,wanted_indexes=None,
@@ -1434,6 +1445,73 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
             x,y = self.__getitem__(index)
         return train_images_out, train_annotations_out
 
+
+class Turn3D_to_2D(Sequence):
+
+    def __init__(self, Generator3D):
+        self.generator = Generator3D
+
+
+    def __getitem__(self, index):
+        x, y = self.generator.__getitem__(index)
+        x = x[0,...]
+        y = y[0,...]
+        return x,y
+
+    def __len__(self):
+        return len(self.generator)
+
+    def on_epoch_end(self):
+        self.generator.on_epoch_end()
+
+
+class Generator_From_Predictions(Sequence):
+    def __init__(self, generator=None, model=None, is_validation=False):
+        self.generator = generator
+        self.model = model
+        self.data_dict = {}
+        self.is_validation = is_validation
+
+
+    def __getitem__(self, index):
+        if self.is_validation:
+            if index not in self.data_dict:
+                x, y = self.generator.__getitem__(index)
+                x = self.model.predict(x)
+                self.data_dict[index] = x,y
+            x,y = self.data_dict[index]
+        else:
+            x, y = self.generator.__getitem__(index)
+            x = self.model.predict(x)
+        return x,y
+
+    def __len__(self):
+        return len(self.generator)
+
+    def on_epoch_end(self):
+        self.generator.on_epoch_end()
+
+class Predict_From_Trained_Model(object):
+    def __init__(self,model_path,gpu=0,graph1=Graph(),session1=Session(config=ConfigProto(log_device_placement=False)), Bilinear_model=None):
+        print('loaded vgg model ' + model_path)
+        self.graph1 = graph1
+        self.session1 = session1
+        # cpus = tf.config.experimental.list_physical_devices('CPU')
+        # Restrict TensorFlow to only use the first CPU
+        # try:
+        #     tf.config.experimental.set_visible_devices(cpus[0], 'CPU')
+        #     logical_gpus = tf.config.experimental.list_logical_devices('CPU')
+        #     print(len(cpus), "Physical CPUs,", len(logical_gpus), "Logical CPU")
+        # except:
+        #     xxx = 1
+        print('loading VGG Pretrained')
+        self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D})
+        print('finished loading')
+
+    def predict(self,images):
+        # with self.graph1.as_default():
+            # with self.session1.as_default():
+        return self.vgg_model_base.predict(images)
 
 if __name__ == '__main__':
     xxx = 1
