@@ -1486,21 +1486,22 @@ class Generator_From_Predictions(Sequence):
         return x,y
 
     def __len__(self):
+        # len(self.generator)
         return len(self.generator)
 
     def on_epoch_end(self):
         self.generator.on_epoch_end()
 
 class Predict_From_Trained_Model(object):
-    def __init__(self,model_path,gpu=0,graph1=Graph(),session1=Session(config=ConfigProto(log_device_placement=False)), Bilinear_model=None):
+    def __init__(self,model_path,Bilinear_model=None): #gpu=0,graph1=Graph(),session1=Session(config=ConfigProto(log_device_placement=False)),
         print('loaded vgg model ' + model_path)
-        self.graph1 = graph1
-        self.session1 = session1
+        # self.graph1 = graph1
+        # self.session1 = session1
         # cpus = tf.config.experimental.list_physical_devices('CPU')
         # Restrict TensorFlow to only use the first CPU
         # try:
-        #     tf.config.experimental.set_visible_devices(cpus[0], 'CPU')
-        #     logical_gpus = tf.config.experimental.list_logical_devices('CPU')
+        # tf.config.experimental.set_visible_devices(cpus[0], 'CPU')
+        # logical_gpus = tf.config.experimental.list_logical_devices('CPU')
         #     print(len(cpus), "Physical CPUs,", len(logical_gpus), "Logical CPU")
         # except:
         #     xxx = 1
