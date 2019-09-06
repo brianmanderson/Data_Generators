@@ -6,9 +6,14 @@ from skimage import morphology
 from skimage.measure import block_reduce
 import cv2, os, copy, glob, pickle
 import numpy as np
-import tensorflow as tf
-from tensorflow.compat.v1 import Graph, Session, ConfigProto, GPUOptions
 from scipy.ndimage import interpolation
+
+
+def get_available_gpus():
+    from tensorflow.python.client import device_lib
+    local_device_protos = device_lib.list_local_devices()
+    return [x.name for x in local_device_protos if x.device_type == 'GPU']
+
 
 def dice_coef_3D(y_true, y_pred, smooth=0.0001):
     intersection = K.sum(y_true[...,1:] * y_pred[...,1:])
@@ -194,7 +199,6 @@ class image_loader(object):
                     description += i + '_'
                 description = description[:-1]
         if len(image_names) > batch_size:
-
             if description not in self.patient_dict_indexes:
                 start = len(image_names) - (batch_size + add)
                 start = np.random.randint(start)
@@ -309,14 +313,6 @@ class image_loader(object):
             return images, annotations
         holder = output_size - np.asarray(images.shape)
         val_differences = [[max([int(i / 2), 0]), max([int(i / 2), 0])] for i in holder]
-        # dif_images, dif_rows, dif_cols = int(output_size[1]-images.shape[1]), int(output_size[2] - images.shape[2]), \
-        #                                  int(output_size[3] - images.shape[3])
-        # dif_images, dif_rows, dif_cols = max([0, int(dif_images / 2 - 1)]), max([0, int(dif_rows / 2 - 1)]), max(
-        #     [0, int(dif_cols / 2 - 1)])
-        # if len(images.shape) == 4:
-        #     val_differences = [[0, 0], [dif_images, dif_images], [dif_rows, dif_rows], [dif_cols, dif_cols], [0, 0]]
-        # else:
-        #     val_differences = [[dif_images, dif_images], [dif_rows, dif_rows], [dif_cols, dif_cols], [0, 0]]
         images, annotations = np.pad(images, val_differences, 'constant', constant_values=(value)), \
                         np.pad(annotations, val_differences, 'constant', constant_values=(0))
         holder = output_size - np.asarray(images.shape)
@@ -354,7 +350,7 @@ class image_loader(object):
 
 class Data_Set_Reader(image_loader):
     def __init__(self,path=None,image_size=512,perturbations=None, three_channel=False, by_patient=False,verbose=True,
-                 num_patients=1, resize_class=None,is_test_set=False, random_start=True,
+                 num_patients=1, resize_class=None,is_test_set=False, random_start=True,whole_patient=False,
                  expansion = 0,final_steps=None, shuffle_images=True, wanted_indexes=None):
         '''
         :param path:
@@ -374,7 +370,7 @@ class Data_Set_Reader(image_loader):
         '''
         super().__init__(image_size=image_size,perturbations=perturbations, three_channel=three_channel,
                               by_patient=by_patient,resize_class=resize_class, random_start=random_start,
-                              final_steps=final_steps, all_images=is_test_set)
+                              final_steps=final_steps, all_images=is_test_set or (whole_patient and by_patient))
         self.wanted_indexes = wanted_indexes
         self.shuffle_images = shuffle_images
         self.expansion = expansion
@@ -1232,7 +1228,7 @@ class Train_Data_Generator_class(Sequence):
                                                     image_size=image_size, three_channel=three_channel,
                                                     by_patient=whole_patient,
                                                     num_patients=num_patients, is_test_set=is_test_set,
-                                                    expansion=expansion,
+                                                    expansion=expansion,whole_patient=whole_patient,
                                                     final_steps=None, verbose=False, wanted_indexes=wanted_indexes)
         self.training_models = self.get_training_models(data_paths,is_test_set,whole_patient,num_patients,expansion, wanted_indexes)
 
@@ -1332,35 +1328,37 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
                  data_paths=None, shuffle=False, all_for_one=False, write_predictions = False,is_auto_encoder=False,
                  num_patients=1,is_test_set=False, expansion=0, clip=0,mean_val=0, std_val=1,
                  max_image_size=999,skip_correction=False, normalize_to_value=None, wanted_indexes=None, z_images=32):
-        super().__init__(image_size=image_size, perturbations=perturbations, three_channel=three_layer,whole_patient=whole_patient, num_of_classes=num_classes,
-                 data_paths=data_paths, num_patients=num_patients,is_test_set=is_test_set, expansion=expansion,shuffle=shuffle, batch_size=batch_size, all_for_one=all_for_one, wanted_indexes=wanted_indexes)
         '''
-        :param image_size: Size of the image that you want as output, recommend 512 or 256
-        :param batch_size: Number of batches, usually stuck at 1 unless specify generator.random_start = False outside of this
-        :param three_layer: Make this a 3 channel output
-        :param whole_patient: Do you want the whole patient
-        :param vgg_model: Use the vgg model as pre-prediction? (Out dated)
-        :param use_vgg: Out dated
-        :param num_classes: Number of output classes
-        :param flatten: Flatten the data
-        :param data_paths: Paths to data
-        :param only_valid: Only give valid images
-        :param shuffle: True/False
+        :param image_size:
+        :param batch_size:
+        :param perturbations:
+        :param three_layer:
+        :param whole_patient:
+        :param verbose:
+        :param num_classes:
+        :param flatten:
+        :param noise:
+        :param prediction_class:
+        :param output_size:
+        :param data_paths:
+        :param shuffle:
         :param all_for_one:
-        :param use_arg_max:
+        :param write_predictions:
+        :param is_auto_encoder:
         :param num_patients:
-        :param sub_sample:
         :param is_test_set:
-        :param additions:
-        :param change_pixel_values:
-        :param resolutions:
         :param expansion:
         :param clip:
-        :param normalize:
-        :param skip_correction: Skip the final shaping, etc.
-        :param save_and_load: Save the data and load each time
-        :param wanted_indexes: Tuple of desired indexes, (1) gives liver
+        :param mean_val:
+        :param std_val:
+        :param max_image_size:
+        :param skip_correction:
+        :param normalize_to_value:
+        :param wanted_indexes:
+        :param z_images:
         '''
+        super().__init__(image_size=image_size, perturbations=perturbations, three_channel=three_layer,whole_patient=whole_patient, num_of_classes=num_classes,
+                 data_paths=data_paths, num_patients=num_patients,is_test_set=is_test_set, expansion=expansion,shuffle=shuffle, batch_size=batch_size, all_for_one=all_for_one, wanted_indexes=wanted_indexes)
         self.perturbations = perturbations
         self.loaded_model = None
         self.output_size = output_size
@@ -1495,24 +1493,45 @@ class Generator_From_Predictions(Sequence):
 class Predict_From_Trained_Model(object):
     def __init__(self,model_path,Bilinear_model=None): #gpu=0,graph1=Graph(),session1=Session(config=ConfigProto(log_device_placement=False)),
         print('loaded vgg model ' + model_path)
-        # self.graph1 = graph1
-        # self.session1 = session1
-        # cpus = tf.config.experimental.list_physical_devices('CPU')
-        # Restrict TensorFlow to only use the first CPU
-        # try:
-        # tf.config.experimental.set_visible_devices(cpus[0], 'CPU')
-        # logical_gpus = tf.config.experimental.list_logical_devices('CPU')
-        #     print(len(cpus), "Physical CPUs,", len(logical_gpus), "Logical CPU")
-        # except:
-        #     xxx = 1
-        print('loading VGG Pretrained')
         self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D})
         print('finished loading')
 
     def predict(self,images):
-        # with self.graph1.as_default():
-            # with self.session1.as_default():
         return self.vgg_model_base.predict(images)
 
+# class Predict_From_Trained_Model(object):
+#     def __init__(self,model_path,Bilinear_model=None,gpu=0): #gpu=0,graph1=Graph(),session1=Session(config=ConfigProto(log_device_placement=False)),
+#         print('loaded vgg model ' + model_path)
+#         import tensorflow as tf
+#         G = get_available_gpus()
+#         if len(G) == 1:
+#             gpu = 0
+#         gpus = tf.config.experimental.list_physical_devices('GPU')
+#         print(gpus)
+#         self.graph = tf.Graph()
+#         # Restrict TensorFlow to only use the first GPU
+#         for index in range(len(gpus)):
+#             if gpus[index].name.find(str(gpu)) != -1:
+#                 print('Set GPU to: ' + gpus[index].name)
+#                 tf.config.experimental.set_visible_devices(gpus[index], 'GPU')
+#                 break
+#         tf.debugging.set_log_device_placement(True)
+#         self.gpu = gpu
+#         self.device = tf.device('/GPU:' + str(self.gpu))
+#         with self.device:
+#             with self.graph.as_default():
+#                 gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
+#                 self.sess = tf.compat.v1.Session(
+#                     config=tf.compat.v1.ConfigProto(gpu_options=gpu_options, log_device_placement=False))
+#                 with self.sess.as_default():
+#                     print('loading VGG Pretrained')
+#                     self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D})
+#                     print('finished loading')
+#
+#     def predict(self,images):
+#         with self.device:
+#             with self.graph.as_default():
+#                 with self.sess.as_default():
+#                     return self.vgg_model_base.predict(images)
 if __name__ == '__main__':
     xxx = 1
