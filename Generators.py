@@ -370,7 +370,7 @@ class Data_Set_Reader(image_loader):
         '''
         super().__init__(image_size=image_size,perturbations=perturbations, three_channel=three_channel,
                               by_patient=by_patient,resize_class=resize_class, random_start=random_start,
-                              final_steps=final_steps, all_images=is_test_set or (whole_patient and by_patient))
+                              final_steps=final_steps, all_images=is_test_set)
         self.wanted_indexes = wanted_indexes
         self.shuffle_images = shuffle_images
         self.expansion = expansion
@@ -1442,6 +1442,53 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
             print(file_name)
             x,y = self.__getitem__(index)
         return train_images_out, train_annotations_out
+
+
+class Image_Clipping_and_Padding(Sequence):
+    def __init__(self, layers_dict, generator, return_mask=False):
+        self.patient_dict = {}
+        self.generator = generator
+        power_val_z, power_val_x, power_val_y = (1,1,1)
+        pool_base = 2
+        for layer in layers_dict:
+            if layer == 'Base':
+                continue
+            if 'Pooling' in layers_dict[layer]:
+                pooling = layers_dict[layer]['Pooling']
+            else:
+                pooling = [pool_base for _ in range(3)]
+            power_val_z *= pooling[0]
+            power_val_x *= pooling[1]
+            power_val_y *= pooling[2]
+        self.return_mask = return_mask
+        self.power_val_z, self.power_val_x, self.power_val_y = power_val_z, power_val_x, power_val_y
+
+    def __getitem__(self, item):
+        x,y = self.generator.__getitem__(item) # Have perturbations being applied, need to keep loading
+        z_start = 0
+        z_stop = x.shape[1]
+        r_start = 0
+        r_stop = 512
+        c_start = 0
+        c_stop = 512
+        z_total, r_total, c_total = z_stop - z_start, r_stop - r_start, c_stop - c_start
+        remainder_z, remainder_r, remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
+                                                self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
+                                                self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
+        min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
+        out_images = np.ones([1,min_images,min_rows,min_cols,x.shape[-1]],dtype=x.dtype)*np.min(x)
+        out_annotations = np.zeros([1, min_images, min_rows, min_cols, y.shape[-1]], dtype=y.dtype)
+        out_annotations[..., 0] = 1
+        out_images[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = x[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
+        out_annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = y[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
+        return out_images, out_annotations
+
+    def __len__(self):
+        return len(self.generator)
+
+    def on_epoch_end(self):
+        self.generator.on_epoch_end()
+        return None
 
 
 class Turn3D_to_2D(Sequence):
