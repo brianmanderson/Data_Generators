@@ -7,6 +7,7 @@ from skimage.measure import block_reduce
 import cv2, os, copy, glob, pickle
 import numpy as np
 from scipy.ndimage import interpolation
+from functools import partial
 
 
 def get_available_gpus():
@@ -174,6 +175,7 @@ class image_loader(object):
     def load_image(self, batch_size=0, image_names=None):
         images, annotations = np.ones([batch_size, self.image_size, self.image_size],dtype='float32')*-1000, \
                               np.zeros([batch_size, self.image_size, self.image_size],dtype='int8')
+        temp_blank = lambda i: np.zeros([self.image_size, self.image_size, i.shape[-1] + 1])
         add = 0
         start = 0
         finish = len(image_names)
@@ -231,8 +233,8 @@ class image_loader(object):
                     annotations_temp = np.load(image_name.replace('_image.npy','_annotation.npy'))
                 if (make_changes or not self.by_patient) or (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
                     if images_temp.shape[1] > self.image_size and images_temp.shape[2] > self.image_size:
-                        images_temp = block_reduce(images_temp[0,...], (2, 2), np.average).astype('float32')[None,...]
-                        annotations_temp = block_reduce(annotations_temp[0,...].astype('int'), (2, 2), np.max).astype('int8')[None,...]
+                        images_temp = block_reduce(images_temp[0,...,0], (2, 2), np.average).astype('float32')[None,...]
+                        annotations_temp = block_reduce(annotations_temp[0,...].astype('int'), (2, 2, 1), np.max).astype('int8')[None,...]
                     elif images_temp.shape[1] <= self.image_size / 2 or images_temp.shape[2] <= self.image_size / 2:
                         images_temp, annotations_temp = self.give_resized_images(images_temp, annotations_temp)
                     if images_temp.shape[0] != 1:
@@ -240,6 +242,10 @@ class image_loader(object):
                         annotations_temp = annotations_temp[None,...]
                     images_temp, annotations_temp = self.convert_image_size(images_temp, annotations_temp,
                                                                             self.image_size)
+                if annotations_temp.shape[-1] != annotations_temp.shape[-2]:
+                    k = temp_blank(annotations_temp)
+                    k[..., 1:] = annotations_temp
+                    annotations_temp = np.argmax(k, axis=-1)
                 self.image_dictionary[image_names[i]] = copy.deepcopy([images_temp.astype('float32'), annotations_temp])
             else:
                 images_temp, annotations_temp = copy.deepcopy(self.image_dictionary[image_names[i]])
@@ -595,10 +601,11 @@ class Pertubartion_Class:
 
 class Train_Data_Generator2D(Sequence):
     def __init__(self, image_size=512, batch_size=5, perturbations=None, num_of_classes=2, data_paths=None,clip=0,expansion=0,
-                 whole_patient=False, shuffle=False, flatten=False, noise=0.0, normalize_to_255=False,z_images=16,
+                 whole_patient=False, shuffle=False, flatten=False, noise=0.0, normalize_to_255=False,z_images=16,auto_normalize=False,
                  all_for_one=False, three_channel=True, using_perturb_engine=False,on_VGG=False,normalize_to_value=None,
                  resize_class=None,add_filename_extension=True, is_test_set=False, reduced_interest=False, mean_val=0, std_val=1):
         self.z_images = z_images
+        self.auto_normalize = auto_normalize
         self.max_images = np.inf
         self.normalize_to_value = normalize_to_value
         self.reduced_interest = reduced_interest
@@ -677,6 +684,13 @@ class Train_Data_Generator2D(Sequence):
                                         [train_images.shape[0],self.image_size*self.image_size*self.num_of_classes])
             class_weights = np.reshape(class_weights,[train_images.shape[0],self.image_size*self.image_size,1])
             return train_images, annotations, class_weights
+        if self.auto_normalize:
+            data = train_images.flatten()
+            data.sort()
+            ten_percent = int(len(data) / 10)
+            data = data[int(ten_percent * 5):]
+            self.mean_val = np.mean(data)
+            self.std_val = np.std(data)
         if self.mean_val != 0 or self.std_val != 1:
             train_images = (train_images-self.mean_val)/self.std_val
             if self.noise != 0:
@@ -1326,7 +1340,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
     def __init__(self, image_size=512, batch_size=1, perturbations=None, three_layer=True,whole_patient=True,verbose=False,
                  num_classes=2, flatten=False,noise=0.0,prediction_class=None,output_size = None,
                  data_paths=None, shuffle=False, all_for_one=False, write_predictions = False,is_auto_encoder=False,
-                 num_patients=1,is_test_set=False, expansion=0, clip=0,mean_val=0, std_val=1,
+                 num_patients=1,is_test_set=False, expansion=0, clip=0,mean_val=0, std_val=1,auto_normalize=False,
                  max_image_size=999,skip_correction=False, normalize_to_value=None, wanted_indexes=None, z_images=32):
         '''
         :param image_size:
@@ -1360,6 +1374,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         super().__init__(image_size=image_size, perturbations=perturbations, three_channel=three_layer,whole_patient=whole_patient, num_of_classes=num_classes,
                  data_paths=data_paths, num_patients=num_patients,is_test_set=is_test_set, expansion=expansion,shuffle=shuffle, batch_size=batch_size, all_for_one=all_for_one, wanted_indexes=wanted_indexes)
         self.perturbations = perturbations
+        self.auto_normalize = auto_normalize
         self.loaded_model = None
         self.output_size = output_size
         self.is_auto_encoder = is_auto_encoder
@@ -1404,6 +1419,18 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
                                                                                train_annotations_out,
                                                                                samples=self.output_size[0],
                                                                                desired_size=self.output_size[1:])
+            if self.auto_normalize:
+                # data = train_images_out[train_annotations_out[..., -2] == 1].flatten()
+                data = train_images_out.flatten()
+                data.sort()
+                abs_data = np.abs(data-np.max(data)*0.9)
+                top_ninety = np.min(np.where(abs_data==np.min(abs_data))[0])
+                data = data[:top_ninety]
+                abs_data = np.abs(data-np.max(data)*0.1)
+                bottom_ten = np.min(np.where(abs_data==np.min(abs_data))[0])
+                data = data[bottom_ten:]
+                self.mean_val = np.mean(data)
+                self.std_val = np.std(data)
             if self.is_auto_encoder:
                 non_noisy_image = copy.deepcopy(train_images_out)
                 if self.mean_val != 0 or self.std_val != 1:
@@ -1428,6 +1455,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
                             train_images_out = train_images_out.reshape(train_images_out.shape[0],np.prod(train_images_out.shape[1:]))
                             train_annotations_out = train_annotations_out.reshape(train_annotations_out.shape[0],
                                                                np.prod(train_annotations_out.shape[1:]))
+
         else:
             train_images_out, train_annotations_out = train_images_full_size, train_annotations_full_size
         if max(self.clip) > 0:
@@ -1445,8 +1473,9 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
 
 
 class Image_Clipping_and_Padding(Sequence):
-    def __init__(self, layers_dict, generator, return_mask=False):
+    def __init__(self, layers_dict, generator, return_mask=False, use_liver=False):
         self.patient_dict = {}
+        self.use_liver = use_liver
         self.generator = generator
         power_val_z, power_val_x, power_val_y = (1,1,1)
         pool_base = 2
@@ -1468,9 +1497,18 @@ class Image_Clipping_and_Padding(Sequence):
         z_start = 0
         z_stop = x.shape[1]
         r_start = 0
-        r_stop = 512
+        r_stop = x.shape[2]
         c_start = 0
-        c_stop = 512
+        c_stop = x.shape[3]
+        if self.use_liver:
+            liver = np.argmax(y,axis=-1)
+            z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
+            z_start = max([0,z_start-5])
+            z_stop = min([z_stop+5,x.shape[1]])
+            r_start = max([0,r_start-10])
+            r_stop = min([512,r_stop+10])
+            c_start = max([0,c_start-10])
+            c_stop = min([512,c_stop+10])
         z_total, r_total, c_total = z_stop - z_start, r_stop - r_start, c_stop - c_start
         remainder_z, remainder_r, remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
                                                 self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
