@@ -1238,8 +1238,9 @@ class Train_Data_Generator_class(Sequence):
         self.whole_patient = whole_patient
         self.is_auto_encoder = False # This can change in sub classes
         self.wanted_indexes = wanted_indexes
+        self.three_channel = three_channel
         self.train_dataset_reader = Data_Set_Reader(perturbations=perturbations,
-                                                    image_size=image_size, three_channel=three_channel,
+                                                    image_size=image_size, three_channel=self.three_channel,
                                                     by_patient=whole_patient,
                                                     num_patients=num_patients, is_test_set=is_test_set,
                                                     expansion=expansion,whole_patient=whole_patient,
@@ -1254,7 +1255,7 @@ class Train_Data_Generator_class(Sequence):
             if len(os.listdir(path)) == 0:
                 print('Nothin in data path:' + path)
             models[path] = Data_Set_Reader(
-                path=path, by_patient=whole_patient,  num_patients=num_patients,
+                path=path, by_patient=whole_patient,  num_patients=num_patients,three_channel=self.three_channel,
                 is_test_set=is_test_set, expansion=expansion, wanted_indexes=wanted_indexes) #Always 1
             self.train_dataset_reader.patient_dict_indexes.update(models[path].patient_dict_indexes)
         return models
@@ -1466,9 +1467,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
             if self.loaded_model:
                 train_images_out = self.loaded_model.predict([train_images_out, np.ones(train_annotations_out.shape[:-1])[...,None]])
             return [train_images_out, train_annotations_out[...,-1][...,None]], non_noisy_image
-        if train_images_out.shape[:-1] != train_annotations_out.shape[:-1]:
-            print(file_name)
-            x,y = self.__getitem__(index)
         return train_images_out, train_annotations_out
 
 
