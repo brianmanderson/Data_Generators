@@ -233,8 +233,8 @@ class image_loader(object):
                     annotations_temp = np.load(image_name.replace('_image.npy','_annotation.npy'))
                 if (make_changes or not self.by_patient) or (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
                     if images_temp.shape[1] > self.image_size and images_temp.shape[2] > self.image_size:
-                        images_temp = block_reduce(images_temp[0,...,0], (2, 2), np.average).astype('float32')[None,...]
-                        annotations_temp = block_reduce(annotations_temp[0,...].astype('int'), (2, 2, 1), np.max).astype('int8')[None,...]
+                        images_temp = block_reduce(images_temp[0,...], (2, 2), np.average).astype('float32')[None,...]
+                        annotations_temp = block_reduce(annotations_temp[0,...].astype('int'), (2, 2, 1), np.max).astype('int')[None,...]
                     elif images_temp.shape[1] <= self.image_size / 2 or images_temp.shape[2] <= self.image_size / 2:
                         images_temp, annotations_temp = self.give_resized_images(images_temp, annotations_temp)
                     if images_temp.shape[0] != 1:
@@ -1582,6 +1582,29 @@ class Predict_From_Trained_Model(object):
     def predict(self,images):
         return self.vgg_model_base.predict(images)
 
+class Post_Processing(Sequence):
+    def __init__(self, generator, w_liver_on_images=False, liver_masked=False):
+        self.w_liver = w_liver_on_images
+        self.liver_masked = liver_masked
+        self.generator = generator
+
+    def __getitem__(self, item):
+        out_images,out_annotations = self.generator.__getitem__(item) # Have perturbations being applied, need to keep loading
+        if self.w_liver or self.liver_masked:
+            liver = np.sum(out_annotations[...,1:],axis=-1)
+            if self.liver_masked:
+                out_images[liver!=1] = np.min(out_images)
+            else:
+                out_images = np.concatenate((out_images, liver[..., None]), axis=-1)
+        out_annotations = np_utils.to_categorical(out_annotations[...,1],2)
+        return out_images, out_annotations
+
+    def __len__(self):
+        return len(self.generator)
+
+    def on_epoch_end(self):
+        self.generator.on_epoch_end()
+        return None
 # class Predict_From_Trained_Model(object):
 #     def __init__(self,model_path,Bilinear_model=None,gpu=0): #gpu=0,graph1=Graph(),session1=Session(config=ConfigProto(log_device_placement=False)),
 #         print('loaded vgg model ' + model_path)
