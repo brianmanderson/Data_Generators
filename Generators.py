@@ -109,7 +109,8 @@ def remove_non_liver(annotations, threshold=0.5, volume_threshold=9999999):
 
 class image_loader(object):
     def __init__(self,image_size=512,perturbations=None, three_channel=False, by_patient=False,
-                 resize_class=None, random_start=True, final_steps=None, all_images=False):
+                 resize_class=None, random_start=True, final_steps=None, all_images=False, save_and_reload=True):
+        self.save_and_reload = save_and_reload
         self.patient_dict_indexes = {}
         self.image_dictionary = {}
         self.resize_class = resize_class
@@ -217,12 +218,12 @@ class image_loader(object):
                 if os.path.exists(new_file):
                     start = image_names.index(new_file)
                     finish = min([int(start+batch_size),len(image_names)])
-
+        k = None
         make_changes = True
         for index, i in enumerate(range(start,finish)):
             if i < 0 or i > len(image_names):
                 print('start:' + str(start) + 'total images: ' + str(len(image_names)) + '_i:' + str(i))
-            if image_names[i] not in self.image_dictionary:
+            if image_names[i] not in self.image_dictionary or not self.save_and_reload:
                 image_name = image_names[i]
                 if image_name.find('_image.npy') == -1:
                     data = np.load(image_name)
@@ -234,7 +235,11 @@ class image_loader(object):
                 if (make_changes or not self.by_patient) or (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
                     if images_temp.shape[1] > self.image_size and images_temp.shape[2] > self.image_size:
                         images_temp = block_reduce(images_temp[0,...], (2, 2), np.average).astype('float32')[None,...]
-                        annotations_temp = block_reduce(annotations_temp[0,...].astype('int'), (2, 2, 1), np.max).astype('int')[None,...]
+                        if len(annotations_temp.shape) == 3:
+                            annotation_block = (2,2)
+                        else:
+                            annotation_block = (2,2,1)
+                        annotations_temp = block_reduce(annotations_temp[0,...].astype('int'), annotation_block, np.max).astype('int')[None,...]
                     elif images_temp.shape[1] <= self.image_size / 2 or images_temp.shape[2] <= self.image_size / 2:
                         images_temp, annotations_temp = self.give_resized_images(images_temp, annotations_temp)
                     if images_temp.shape[0] != 1:
@@ -243,7 +248,8 @@ class image_loader(object):
                     images_temp, annotations_temp = self.convert_image_size(images_temp, annotations_temp,
                                                                             self.image_size)
                 if annotations_temp.shape[-1] != annotations_temp.shape[-2]:
-                    k = temp_blank(annotations_temp)
+                    if k is None:
+                        k = temp_blank(annotations_temp)
                     k[..., 1:] = annotations_temp
                     annotations_temp = np.argmax(k, axis=-1)
                 self.image_dictionary[image_names[i]] = copy.deepcopy([images_temp.astype('float32'), annotations_temp])
@@ -356,7 +362,7 @@ class image_loader(object):
 
 class Data_Set_Reader(image_loader):
     def __init__(self,path=None,image_size=512,perturbations=None, three_channel=False, by_patient=False,verbose=True,
-                 num_patients=1, resize_class=None,is_test_set=False, random_start=True,whole_patient=False,
+                 num_patients=1, resize_class=None,is_test_set=False, random_start=True,save_and_reload=True,
                  expansion = 0,final_steps=None, shuffle_images=True, wanted_indexes=None):
         '''
         :param path:
@@ -376,7 +382,7 @@ class Data_Set_Reader(image_loader):
         '''
         super().__init__(image_size=image_size,perturbations=perturbations, three_channel=three_channel,
                               by_patient=by_patient,resize_class=resize_class, random_start=random_start,
-                              final_steps=final_steps, all_images=is_test_set)
+                              final_steps=final_steps, all_images=is_test_set, save_and_reload=save_and_reload)
         self.wanted_indexes = wanted_indexes
         self.shuffle_images = shuffle_images
         self.expansion = expansion
@@ -1214,7 +1220,7 @@ def get_bounding_box(train_images_out_base, train_annotations_out_base, include_
 class Train_Data_Generator_class(Sequence):
 
     def __init__(self, image_size=512, perturbations=None, three_channel=True,whole_patient=True,num_of_classes=2,wanted_indexes=None,
-                 data_paths=None, num_patients=1,is_test_set=False, expansion=0,shuffle=False, batch_size=1, all_for_one=False):
+                 data_paths=None, num_patients=1,is_test_set=False, expansion=0,shuffle=False, batch_size=1, all_for_one=False, save_and_reload=True):
         '''
         :param image_size: Image size
         :param three_layer: make three layer
@@ -1229,6 +1235,7 @@ class Train_Data_Generator_class(Sequence):
         :param final_steps:
         :param save_and_load:
         '''
+        self.save_and_reload = save_and_reload
         self.max_patients = np.inf
         self.image_size = image_size
         self.shuffle = shuffle
@@ -1243,7 +1250,7 @@ class Train_Data_Generator_class(Sequence):
                                                     image_size=image_size, three_channel=self.three_channel,
                                                     by_patient=whole_patient,
                                                     num_patients=num_patients, is_test_set=is_test_set,
-                                                    expansion=expansion,whole_patient=whole_patient,
+                                                    expansion=expansion,save_and_reload=save_and_reload,
                                                     final_steps=None, verbose=False, wanted_indexes=wanted_indexes)
         self.training_models = self.get_training_models(data_paths,is_test_set,whole_patient,num_patients,expansion, wanted_indexes)
 
@@ -1256,7 +1263,7 @@ class Train_Data_Generator_class(Sequence):
                 print('Nothin in data path:' + path)
             models[path] = Data_Set_Reader(
                 path=path, by_patient=whole_patient,  num_patients=num_patients,three_channel=self.three_channel,
-                is_test_set=is_test_set, expansion=expansion, wanted_indexes=wanted_indexes) #Always 1
+                is_test_set=is_test_set, expansion=expansion, wanted_indexes=wanted_indexes, save_and_reload=self.save_and_reload) #Always 1
             self.train_dataset_reader.patient_dict_indexes.update(models[path].patient_dict_indexes)
         return models
 
@@ -1339,7 +1346,7 @@ class Train_Data_Generator_class(Sequence):
 class Train_Data_Generator3D(Train_Data_Generator_class):
 
     def __init__(self, image_size=512, batch_size=1, perturbations=None, three_layer=True,whole_patient=True,verbose=False,
-                 num_classes=2, flatten=False,noise=0.0,prediction_class=None,output_size = None,
+                 num_classes=2, flatten=False,noise=0.0,prediction_class=None,output_size = None,save_and_reload=True,
                  data_paths=None, shuffle=False, all_for_one=False, write_predictions = False,is_auto_encoder=False,
                  num_patients=1,is_test_set=False, expansion=0, clip=0,mean_val=0, std_val=1,auto_normalize=False,
                  max_image_size=999,skip_correction=False, normalize_to_value=None, wanted_indexes=None, z_images=32):
@@ -1372,9 +1379,11 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         :param wanted_indexes:
         :param z_images:
         '''
-        super().__init__(image_size=image_size, perturbations=perturbations, three_channel=three_layer,whole_patient=whole_patient, num_of_classes=num_classes,
+        super().__init__(image_size=image_size, perturbations=perturbations, three_channel=three_layer,whole_patient=whole_patient, num_of_classes=num_classes,save_and_reload=save_and_reload,
                  data_paths=data_paths, num_patients=num_patients,is_test_set=is_test_set, expansion=expansion,shuffle=shuffle, batch_size=batch_size, all_for_one=all_for_one, wanted_indexes=wanted_indexes)
         self.perturbations = perturbations
+        self.is_test_set = is_test_set
+        self.index_data = {}
         self.auto_normalize = auto_normalize
         self.loaded_model = None
         self.output_size = output_size
@@ -1403,10 +1412,8 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         self.get_image_lists()
 
     def __getitem__(self, index):
-        file_name = self.train_dataset_reader.file_batches[index][0][0]
         non_noisy_image = None
-
-        train_images_full_size, train_annotations_full_size = self.train_dataset_reader.load_images(index,self.z_images) # how many images to pull
+        train_images_full_size, train_annotations_full_size = self.train_dataset_reader.load_images(index,self.z_images)  # how many images to pull
         if not self.skip_correction:
             if len(train_images_full_size.shape) == 5:
                 train_images_out, train_annotations_out = np.empty(train_images_full_size.shape), np.empty(train_images_full_size.shape[:-1] + (self.num_of_classes,))
@@ -1471,9 +1478,9 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
 
 
 class Image_Clipping_and_Padding(Sequence):
-    def __init__(self, layers_dict, generator, return_mask=False, use_liver=False):
+    def __init__(self, layers_dict, generator, return_mask=False, liver_box=False):
         self.patient_dict = {}
-        self.use_liver = use_liver
+        self.liver_box = liver_box
         self.generator = generator
         power_val_z, power_val_x, power_val_y = (1,1,1)
         pool_base = 2
@@ -1492,13 +1499,7 @@ class Image_Clipping_and_Padding(Sequence):
 
     def __getitem__(self, item):
         x,y = self.generator.__getitem__(item) # Have perturbations being applied, need to keep loading
-        z_start = 0
-        z_stop = x.shape[1]
-        r_start = 0
-        r_stop = x.shape[2]
-        c_start = 0
-        c_stop = x.shape[3]
-        if self.use_liver:
+        if self.liver_box:
             liver = np.argmax(y,axis=-1)
             z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
             z_start = max([0,z_start-5])
@@ -1507,6 +1508,13 @@ class Image_Clipping_and_Padding(Sequence):
             r_stop = min([512,r_stop+10])
             c_start = max([0,c_start-10])
             c_stop = min([512,c_stop+10])
+        else:
+            z_start = 0
+            z_stop = x.shape[1]
+            r_start = 0
+            r_stop = x.shape[2]
+            c_start = 0
+            c_stop = x.shape[3]
         z_total, r_total, c_total = z_stop - z_start, r_stop - r_start, c_stop - c_start
         remainder_z, remainder_r, remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
                                                 self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
@@ -1517,6 +1525,8 @@ class Image_Clipping_and_Padding(Sequence):
         out_annotations[..., 0] = 1
         out_images[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = x[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
         out_annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = y[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
+        if self.return_mask:
+            return [out_images,np.sum(out_annotations[...,1:],axis=-1)[...,None]], out_annotations
         return out_images, out_annotations
 
     def __len__(self):
