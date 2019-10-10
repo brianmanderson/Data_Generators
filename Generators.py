@@ -1540,6 +1540,31 @@ class Image_Clipping_and_Padding(Sequence):
         self.generator.on_epoch_end()
         return None
 
+
+class Bounding_Box_Info(Sequence):
+    def __init__(self, generator, z_images=512):
+        self.patient_dict = {}
+        self.generator = generator
+        self.z_images = z_images
+
+    def __getitem__(self, item):
+        x,y = self.generator.__getitem__(item) # Have perturbations being applied, need to keep loading
+        liver = np.argmax(y, axis=-1)
+        z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
+        out_images = np.ones([1,self.z_images,512,512,x.shape[-1]],dtype=x.dtype)*np.min(x)
+        out_images[:,:x.shape[1],...] = x
+        output = np.zeros((1,6))
+        output[...] = [z_start, z_stop, r_start, r_stop, c_start, c_stop]
+        return out_images, output
+
+    def __len__(self):
+        return len(self.generator)
+
+    def on_epoch_end(self):
+        self.generator.on_epoch_end()
+        return None
+
+
 class Parotids_to_single_class(Sequence):
     def __init__(self, Generator3D):
         self.generator = Generator3D
