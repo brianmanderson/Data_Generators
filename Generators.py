@@ -233,13 +233,13 @@ class image_loader(object):
                     images_temp = np.load(image_name)
                     annotations_temp = np.load(image_name.replace('_image.npy','_annotation.npy'))
                 if (make_changes or not self.by_patient) or (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
-                    if images_temp.shape[1] > self.image_size and images_temp.shape[2] > self.image_size:
-                        images_temp = block_reduce(images_temp[0,...], (2, 2), np.average).astype('float32')[None,...]
+                    if images_temp.shape[1] >= self.image_size*2 and images_temp.shape[2] >= self.image_size*2:
                         if len(annotations_temp.shape) == 3:
-                            annotation_block = (2,2)
+                            block = (2,2)
                         else:
-                            annotation_block = (2,2,1)
-                        annotations_temp = block_reduce(annotations_temp[0,...].astype('int'), annotation_block, np.max).astype('int')[None,...]
+                            block = (2,2,1)
+                        images_temp = block_reduce(images_temp[0,...], block, np.average).astype('float32')[None,...]
+                        annotations_temp = block_reduce(annotations_temp[0,...].astype('int'), block, np.max).astype('int')[None,...]
                     elif images_temp.shape[1] <= self.image_size / 2 or images_temp.shape[2] <= self.image_size / 2:
                         images_temp, annotations_temp = self.give_resized_images(images_temp, annotations_temp)
                     if images_temp.shape[0] != 1:
@@ -667,7 +667,11 @@ class Train_Data_Generator2D(Sequence):
         else:
             for i in range(min(list_len)):
                 for key in self.training_models.keys():
-                    self.image_list.append(self.training_models[key].file_batches[i])
+                    try:
+                        self.image_list.append(self.training_models[key].file_batches[i])
+                    except:
+                        print(i)
+                        print(len(self.training_models[key].file_batches))
         self.train_dataset_reader.file_batches = self.image_list
 
     def __getitem__(self,index):
@@ -1535,6 +1539,23 @@ class Image_Clipping_and_Padding(Sequence):
     def on_epoch_end(self):
         self.generator.on_epoch_end()
         return None
+
+class Parotids_to_single_class(Sequence):
+    def __init__(self, Generator3D):
+        self.generator = Generator3D
+
+
+    def __getitem__(self, index):
+        x, y = self.generator.__getitem__(index)
+        y = np.sum(y[...,1:],axis=-1)
+        y = np_utils.to_categorical(y,2)
+        return x,y
+
+    def __len__(self):
+        return len(self.generator)
+
+    def on_epoch_end(self):
+        self.generator.on_epoch_end()
 
 
 class Turn3D_to_2D(Sequence):
