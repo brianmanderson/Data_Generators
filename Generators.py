@@ -252,9 +252,9 @@ class image_loader(object):
                         k = temp_blank(annotations_temp)
                     k[..., 1:] = annotations_temp
                     annotations_temp = np.argmax(k, axis=-1)
-                self.image_dictionary[image_names[i]] = copy.deepcopy([images_temp.astype('float32'), annotations_temp])
+                self.image_dictionary[image_names[i]] = [images_temp.astype('float32'), annotations_temp]
             else:
-                images_temp, annotations_temp = copy.deepcopy(self.image_dictionary[image_names[i]])
+                images_temp, annotations_temp = self.image_dictionary[image_names[i]]
             images[index] = np.squeeze(images_temp)
             annotations[index] = np.squeeze(annotations_temp)
 
@@ -406,7 +406,7 @@ class Data_Set_Reader(image_loader):
             elif self.verbose:
                 print(path)
                 print('Wrong path')
-        self.load_file_list = copy.deepcopy(self.file_list)
+        self.load_file_list = self.file_list[:]
         self.make_patient_list()
         if self.by_patient:
             self.prep_batches()
@@ -495,7 +495,7 @@ class Data_Set_Reader(image_loader):
                 xxx = 1
 
     def prep_batches(self,batch_size=1):
-        self.load_file_list = copy.deepcopy(self.file_list)
+        self.load_file_list = self.file_list[:]
         self.file_batches = []
         if not self.by_patient:
             perm = np.arange(len(self.file_list))
@@ -1553,8 +1553,8 @@ class Bounding_Box_Info(Sequence):
         z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
         out_images = np.ones([1,self.z_images,512,512,x.shape[-1]],dtype=x.dtype)*np.min(x)
         out_images[:,:x.shape[1],...] = x
-        output = np.zeros((1,6))
-        output[...] = [z_start, z_stop, r_start, r_stop, c_start, c_stop]
+        # output = np.zeros((1,6))
+        # output[...] = [z_start, z_stop, r_start, r_stop, c_start, c_stop]
         output = np.zeros((1,2))
         output[...] = [z_start, z_stop]
         return out_images, output
