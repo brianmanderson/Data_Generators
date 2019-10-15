@@ -1555,6 +1555,8 @@ class Bounding_Box_Info(Sequence):
         out_images[:,:x.shape[1],...] = x
         output = np.zeros((1,6))
         output[...] = [z_start, z_stop, r_start, r_stop, c_start, c_stop]
+        output = np.zeros((1,2))
+        output[...] = [z_start, z_stop]
         return out_images, output
 
     def __len__(self):
