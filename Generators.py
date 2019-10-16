@@ -7,7 +7,7 @@ from skimage.measure import block_reduce
 import cv2, os, copy, glob, pickle
 import numpy as np
 from scipy.ndimage import interpolation
-from functools import partial
+import nibabel as nib
 
 
 def get_available_gpus():
@@ -183,8 +183,11 @@ class image_loader(object):
         if not self.random_start:
             batch_size = finish
         description = ''
+        file = image_names[0]
+        ext = '.npy'
+        if file.find('.nii.gz') != -1:
+            ext = '.nii.gz'
         if self.by_patient and batch_size != 0 and not self.all_images:
-            file = image_names[0]
             broken_up = file.split('\\')
             if len(broken_up) == 1:
                 broken_up = file.split('/')
@@ -214,7 +217,7 @@ class image_loader(object):
             else:
                 values = self.patient_dict_indexes[description][self.wanted_indexes[-1]]
                 np.random.shuffle(values)
-                new_file = file.replace(slice_num+'.npy',str(values[0])+'.npy')
+                new_file = file.replace(slice_num+ext,str(values[0])+ext)
                 if os.path.exists(new_file):
                     start = image_names.index(new_file)
                     finish = min([int(start+batch_size),len(image_names)])
@@ -225,13 +228,23 @@ class image_loader(object):
                 print('start:' + str(start) + 'total images: ' + str(len(image_names)) + '_i:' + str(i))
             if image_names[i] not in self.image_dictionary or not self.save_and_reload:
                 image_name = image_names[i]
-                if image_name.find('_image.npy') == -1:
-                    data = np.load(image_name)
+                if image_name.find('_image' + ext) == -1:
+                    if ext == '.npy':
+                        data = np.load(image_name)
+                    else:
+                        data = nib.load(image_name)
+                        data = data.get_fdata()
                     images_temp = data[0, :, :][None,...]
                     annotations_temp = data[1, :, :][None,...]
                 else:
-                    images_temp = np.load(image_name)
-                    annotations_temp = np.load(image_name.replace('_image.npy','_annotation.npy'))
+                    if ext == '.npy':
+                        images_temp = np.load(image_name)
+                        annotations_temp = np.load(image_name.replace('_image.npy','_annotation.npy'))
+                    else:
+                        images_temp = nib.load(image_name)
+                        images_temp = images_temp.get_fdata()
+                        annotations_temp = nib.load(image_name.replace('_image.nii.gz','_annotation.nii.gz'))
+                        annotations_temp = annotations_temp.get_fdata()
                 if (make_changes or not self.by_patient) or (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
                     if images_temp.shape[1] >= self.image_size*2 and images_temp.shape[2] >= self.image_size*2:
                         if len(annotations_temp.shape) == 3:
@@ -396,12 +409,15 @@ class Data_Set_Reader(image_loader):
         self.by_patient = by_patient
         self.data_path = path
         self.file_list = []
+        self.file_ext = '.npy'
         if path:
             if 'descriptions_start_and_stop.pkl' in os.listdir(path):
                 self.start_stop_dict = load_obj(os.path.join(path, 'descriptions_start_and_stop.pkl'))
             if os.path.exists(path):
                 for file in os.listdir(path):
-                    if file.find('.npy') != -1 and file.find('_annotation.npy') == -1:
+                    if file.find('_annotation.') == -1:
+                        if file.find('.nii.gz') != -1:
+                            self.file_ext = '.nii.gz'
                         self.file_list.append(os.path.join(path, file))
             elif self.verbose:
                 print(path)
