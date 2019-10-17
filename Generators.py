@@ -617,6 +617,85 @@ class Pertubartion_Class:
                     annotations = interpolation.shift(annotations.astype('int'),
                                                                     [0, variation_row, variation_col])
                 images = output_image
+            elif key == 'Scale':
+                if variation != 0:
+                    output_image = np.zeros(images.shape, dtype=images.dtype)
+                    if len(images.shape) > 2:
+                        for image in range(images.shape[0]):
+                            im = images[image, :, :]
+                            if np.max(im) != 0:
+                                temp_scale = cv2.resize(images, None, fx=1 + variation, fy=1 + variation,
+                                                        interpolation=cv2.INTER_LINEAR)
+                                center = (temp_scale.shape[0] // 2, temp_scale.shape[1] // 2)
+                                if variation > 0:
+                                    im = temp_scale[int(center[0] - 512 / 2):int(center[0] + 512 / 2),
+                                         int(center[1] - 512 / 2):int(center[1] + 512 / 2)]
+                                elif variation < 0:
+                                    im = np.pad(temp_scale, [
+                                        (abs(int(center[0] - 512 / 2)), abs(int(center[0] - 512 / 2))),
+                                        (abs(int(center[1] - 512 / 2)),
+                                         abs(int(center[1] - 512 / 2)))], mode='constant',
+                                                constant_values=np.min(temp_scale))
+                            output_image[image, :, :] = im
+                    else:
+                        temp_scale = cv2.resize(images, None, fx=1 + variation, fy=1 + variation,
+                                                interpolation=cv2.INTER_LINEAR)
+                        center = (temp_scale.shape[0] // 2, temp_scale.shape[1] // 2)
+                        if variation > 0:
+                            output_image = temp_scale[int(center[0] - 512 / 2):int(center[0] + 512 / 2),
+                                           int(center[1] - 512 / 2):int(center[1] + 512 / 2)]
+                        elif variation < 0:
+                            output_image = np.pad(temp_scale, [
+                                (abs(int(center[0] - 512 / 2)), abs(int(center[0] - 512 / 2))),
+                                (abs(int(center[1] - 512 / 2)),
+                                 abs(int(center[1] - 512 / 2)))], mode='constant', constant_values=np.min(temp_scale))
+                    images = output_image
+                    output_annotation = np.zeros(annotations.shape, dtype=annotations.dtype)
+
+                    for val in range(1, int(annotations.max()) + 1):
+                        temp = copy.deepcopy(annotations).astype('int')
+                        temp[temp != val] = 0
+                        temp[temp > 0] = 1
+                        if len(annotations.shape) > 2:
+                            for image in range(annotations.shape[0]):
+                                im = temp[image, :, :]
+                                if np.max(im) != 0:
+                                    temp_scale = cv2.resize(im, None, fx=1 + variation, fy=1 + variation,
+                                                            interpolation=cv2.INTER_NEAREST)
+                                    center = (temp_scale.shape[0] // 2, temp_scale.shape[1] // 2)
+                                    if variation > 0:
+                                        im = temp_scale[int(center[0] - 512 / 2):int(center[0] + 512 / 2),
+                                             int(center[1] - 512 / 2):int(center[1] + 512 / 2)]
+                                    elif variation < 0:
+                                        im = np.pad(temp_scale, [
+                                            (abs(int(center[0] - 512 / 2)), abs(int(center[0] - 512 / 2))),
+                                            (abs(int(center[1] - 512 / 2)),
+                                             abs(int(center[1] - 512 / 2)))], mode='constant',
+                                                    constant_values=np.min(temp_scale))
+
+                                    im[im > 0.1] = val
+                                    im[im < val] = 0
+                                    output_annotation[image, :, :][im == val] = val
+                        else:
+                            im = temp
+                            if np.max(im) != 0:
+                                temp_scale = cv2.resize(im, None, fx=1 + variation, fy=1 + variation,
+                                                        interpolation=cv2.INTER_NEAREST)
+                                center = (temp_scale.shape[0] // 2, temp_scale.shape[1] // 2)
+                                if variation > 0:
+                                    im = temp_scale[int(center[0] - 512 / 2):int(center[0] + 512 / 2),
+                                         int(center[1] - 512 / 2):int(center[1] + 512 / 2)]
+                                elif variation < 0:
+                                    im = np.pad(temp_scale, [
+                                        (abs(int(center[0] - 512 / 2)), abs(int(center[0] - 512 / 2))),
+                                        (abs(int(center[1] - 512 / 2)),
+                                         abs(int(center[1] - 512 / 2)))], mode='constant',
+                                                constant_values=np.min(temp_scale))
+                                im[im > 0.1] = val
+                                im[im < val] = 0
+                                output_annotation[im == val] = val
+                    annotations = output_annotation
+
         images += min_val
         output_image = images
         output_annotation = annotations
