@@ -199,7 +199,7 @@ class image_loader(object):
                     description += i + '_'
                 description = description[:-1]
             else:
-                slice_num = int(broken_up[-1][:-4])
+                slice_num = int(broken_up[-1].split('.')[0])
                 description = ''
                 for i in broken_up[:-1]:
                     description += i + '_'
@@ -445,7 +445,7 @@ class Data_Set_Reader(image_loader):
                     description += i + '_'
                 description = description[:-1]
             else:
-                slice_num = int(broken_up[-1][:-4])
+                slice_num = int(broken_up[-1].split('.')[0])
                 description = ''
                 for i in broken_up[:-1]:
                     description += i + '_'
