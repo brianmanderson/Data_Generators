@@ -415,6 +415,8 @@ class Data_Set_Reader(image_loader):
                 self.start_stop_dict = load_obj(os.path.join(path, 'descriptions_start_and_stop.pkl'))
             if os.path.exists(path):
                 for file in os.listdir(path):
+                    if file.find('.npy') == -1 and file.find('.nii.gz') == -1:
+                        continue
                     if file.find('_annotation.') == -1:
                         if file.find('.nii.gz') != -1:
                             self.file_ext = '.nii.gz'
