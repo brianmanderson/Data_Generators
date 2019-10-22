@@ -126,38 +126,45 @@ class image_loader(object):
         self.all_images = all_images
 
     def convert_image_size(self, images, annotations, image_size):
-        if images.shape[1] != image_size:
-            difference_1 = image_size - images.shape[1]
-            if difference_1 > 0:
-                images = np.concatenate((images, images[:, :int(difference_1 / 2), :]),
+        dif_1 = (image_size - images.shape[1])
+        dif_2 = (image_size - images.shape[2])
+        if dif_1 > 0 and dif_2 > 0:
+            out_image = np.ones([1, image_size, image_size],dtype=images.dtype) * np.min(images)
+            out_annotations = np.zeros([1, image_size, image_size],dtype=annotations.dtype)
+            out_image[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2]] = images
+            out_annotations[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2]] = annotations
+            return out_image, out_annotations
+        if dif_1 != 0:
+            if dif_1 > 0:
+                images = np.concatenate((images, images[:, :dif_1//2, :]),
                                         axis=1)
-                images = np.concatenate((images[:, -int(difference_1 / 2):, :], images),
+                images = np.concatenate((images[:, -dif_1//2:, :], images),
                                         axis=1)
-                annotations = np.concatenate((annotations, annotations[:, :int(difference_1 / 2), :]),
+                annotations = np.concatenate((annotations, annotations[:, :dif_1//2, :]),
                                         axis=1)
-                annotations = np.concatenate((annotations[:, -int(difference_1 / 2):, :], annotations),
+                annotations = np.concatenate((annotations[:, -dif_1//2:, :], annotations),
                                         axis=1)
-            elif difference_1 < 0:
-                images = images[:, :int(difference_1 / 2), :]
-                images = images[:, abs(int(difference_1 / 2)):, :]
-                annotations = annotations[:, :int(difference_1 / 2), :]
-                annotations = annotations[:, abs(int(difference_1 / 2)):, :]
+            elif dif_1 < 0:
+                images = images[:, :dif_1//2, :]
+                images = images[:, abs(dif_1//2):, :]
+                annotations = annotations[:, :dif_1//2, :]
+                annotations = annotations[:, abs(dif_1//2):, :]
         if images.shape[2] != image_size:
             difference_2 = image_size - images.shape[2]
             if difference_2 > 0:
-                images = np.concatenate((images, images[:, :, :int(difference_2 / 2)]),
+                images = np.concatenate((images, images[:, :, :dif_2//2]),
                                         axis=2)
-                images = np.concatenate((images[:, :, -int(difference_2 / 2):], images),
+                images = np.concatenate((images[:, :, -dif_2//2:], images),
                                         axis=2)
-                annotations = np.concatenate((annotations, annotations[:, :, :int(difference_2 / 2)]),
+                annotations = np.concatenate((annotations, annotations[:, :, :dif_2//2]),
                                         axis=2)
-                annotations = np.concatenate((annotations[:, :, -int(difference_2 / 2):], annotations),
+                annotations = np.concatenate((annotations[:, :, -dif_2//2:], annotations),
                                         axis=2)
             elif difference_2 < 0:
-                images = images[:, :, :int(difference_2 / 2)]
-                images = images[:, :, abs(int(difference_2 / 2)):]
-                annotations = annotations[:, :, :int(difference_2 / 2)]
-                annotations = annotations[:, :, abs(int(difference_2 / 2)):]
+                images = images[:, :, :dif_2//2]
+                images = images[:, :, abs(dif_2//2):]
+                annotations = annotations[:, :, :dif_2//2]
+                annotations = annotations[:, :, abs(dif_2//2):]
         return images, annotations
 
     def give_resized_images(self, images_temp, annotations_temp):
