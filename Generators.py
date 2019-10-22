@@ -7,7 +7,7 @@ from skimage.measure import block_reduce
 import cv2, os, copy, glob, pickle
 import numpy as np
 from scipy.ndimage import interpolation
-import nibabel as nib
+import SimpleITK as sitk
 
 
 def get_available_gpus():
@@ -232,8 +232,8 @@ class image_loader(object):
                     if ext == '.npy':
                         data = np.load(image_name)
                     else:
-                        data = nib.load(image_name)
-                        data = data.get_fdata()
+                        data_handle = sitk.ReadImage(image_name)
+                        data = sitk.ReadImage(data_handle)
                     images_temp = data[0, :, :][None,...]
                     annotations_temp = data[1, :, :][None,...]
                 else:
@@ -241,10 +241,10 @@ class image_loader(object):
                         images_temp = np.load(image_name)
                         annotations_temp = np.load(image_name.replace('_image.npy','_annotation.npy'))
                     else:
-                        images_temp = nib.load(image_name)
-                        images_temp = images_temp.get_fdata()
-                        annotations_temp = nib.load(image_name.replace('_image.nii.gz','_annotation.nii.gz'))
-                        annotations_temp = annotations_temp.get_fdata()
+                        images_temp_handle = sitk.ReadImage(image_name)
+                        images_temp = sitk.GetArrayFromImage(images_temp_handle)[None,...]
+                        annotations_temp_handle = sitk.ReadImage(image_name.replace('_image.nii.gz','_annotation.nii.gz'))
+                        annotations_temp = sitk.GetArrayFromImage(annotations_temp_handle)[None,...]
                 if (make_changes or not self.by_patient) or (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
                     if images_temp.shape[1] >= self.image_size*2 and images_temp.shape[2] >= self.image_size*2:
                         if len(annotations_temp.shape) == 3:
