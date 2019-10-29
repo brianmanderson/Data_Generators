@@ -10,16 +10,16 @@ from scipy.ndimage import interpolation
 import SimpleITK as sitk
 
 
-def get_available_gpus():
-    from tensorflow.python.client import device_lib
-    local_device_protos = device_lib.list_local_devices()
-    return [x.name for x in local_device_protos if x.device_type == 'GPU']
+def load_obj(path):
+    if path.find('.pkl') == -1:
+        path += '.pkl'
+    if os.path.exists(path):
+        with open(path, 'rb') as f:
+            return pickle.load(f)
+    else:
+        out = {}
+        return out
 
-
-def dice_coef_3D(y_true, y_pred, smooth=0.0001):
-    intersection = K.sum(y_true[...,1:] * y_pred[...,1:])
-    union = K.sum(y_true[...,1:]) + K.sum(y_pred[...,1:])
-    return (2. * intersection + smooth) / (union + smooth)
 
 def plot_scroll_Image(x):
     '''
@@ -42,16 +42,6 @@ def plot_scroll_Image(x):
     fig.canvas.mpl_connect('scroll_event', tracker.onscroll)
     return fig,tracker
     #Image is input in the form of [#images,512,512,#channels]
-
-def load_obj(path):
-    if path.find('.pkl') == -1:
-        path += '.pkl'
-    if os.path.exists(path):
-        with open(path, 'rb') as f:
-            return pickle.load(f)
-    else:
-        out = {}
-        return out
 
 class IndexTracker(object):
     def __init__(self, ax, X):
@@ -108,58 +98,13 @@ def remove_non_liver(annotations, threshold=0.5, volume_threshold=9999999):
 
 
 class image_loader(object):
-    def __init__(self,image_size=512,perturbations=None, three_channel=False, by_patient=False,
-                 resize_class=None, random_start=True, final_steps=None, all_images=False, save_and_reload=True):
-        self.save_and_reload = save_and_reload
+    def __init__(self,image_size=512,by_patient=False,random_start=True, all_images=False):
         self.patient_dict_indexes = {}
         self.image_dictionary = {}
-        self.resize_class = resize_class
         self.random_start = random_start
         self.by_patient = by_patient
         self.image_size = image_size
-        if perturbations:
-            self.perturbations = perturbations
-            self.pertubartion_class = Pertubartion_Class(perturbations, [image_size, image_size])
-        self.perturbations = perturbations
-        self.three_channel = three_channel
-        self.final_steps = final_steps
         self.all_images = all_images
-
-    def convert_image_size(self, images, annotations, image_size):
-        dif_1 = (image_size - images.shape[1])
-        dif_2 = (image_size - images.shape[2])
-        if dif_1 > 0 and dif_2 > 0:
-            out_image = np.ones([1, image_size, image_size],dtype=images.dtype) * np.min(images)
-            out_annotations = np.zeros([1, image_size, image_size],dtype=annotations.dtype)
-            out_image[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2]] = images
-            out_annotations[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2]] = annotations
-            return out_image, out_annotations
-        if dif_1 != 0:
-            if dif_1 > 0:
-                images = np.concatenate((images, images[:, :dif_1//2, :]),axis=1)
-                images = np.concatenate((images[:, -dif_1//2:, :], images),axis=1)
-                annotations = np.concatenate((annotations, annotations[:, :dif_1//2, :]),axis=1)
-                annotations = np.concatenate((annotations[:, -dif_1//2:, :], annotations),axis=1)
-            elif dif_1 < 0:
-                images = images[:, :dif_1//2, :]
-                images = images[:, abs(dif_1//2):, :]
-                annotations = annotations[:, :dif_1//2, :]
-                annotations = annotations[:, abs(dif_1//2):, :]
-        if images.shape[2] != image_size:
-            difference_2 = image_size - images.shape[2]
-            if difference_2 > 0:
-                images = np.concatenate((images, images[:, :, :dif_2//2]),
-                                        axis=2)
-                images = np.concatenate((images[:, :, -dif_2//2:], images),
-                                        axis=2)
-                annotations = np.concatenate((annotations, annotations[:, :, :dif_2//2]),
-                                        axis=2)
-                annotations = np.concatenate((annotations[:, :, -dif_2//2:], annotations),
-                                        axis=2)
-            elif difference_2 < 0:
-                images = images[:, :, abs(dif_2//2):dif_2//2]
-                annotations = annotations[:, :, abs(dif_2//2):dif_2//2]
-        return images, annotations
 
     def give_resized_images(self, images_temp, annotations_temp):
         if images_temp.shape[0] != 1:
@@ -374,85 +319,42 @@ class image_loader(object):
     def return_images(self):
         return self.images, self.annotations
 
-class Data_Set_Reader(image_loader):
-    def __init__(self,path=None,image_size=512,perturbations=None, three_channel=False, by_patient=False,verbose=True,
-                 num_patients=1, resize_class=None,is_test_set=False, random_start=True,save_and_reload=True,
-                 expansion = 0,final_steps=None, shuffle_images=True, wanted_indexes=None):
-        '''
-        :param path:
-        :param image_size:
-        :param perturbations:
-        :param three_channel:
-        :param by_patient:
-        :param verbose:
-        :param num_patients:
-        :param resize_class:
-        :param is_test_set:
-        :param random_start:
-        :param expansion:
-        :param final_steps:
-        :param shuffle_images:
-        :param wanted_indexes: a tuple of indexes wanted (2) will pull disease only if 1 is liver
-        '''
-        super().__init__(image_size=image_size,perturbations=perturbations, three_channel=three_channel,
-                              by_patient=by_patient,resize_class=resize_class, random_start=random_start,
-                              final_steps=final_steps, all_images=is_test_set, save_and_reload=save_and_reload)
-        self.wanted_indexes = wanted_indexes
-        self.shuffle_images = shuffle_images
+class Data_Set_Reader(object):
+    def __init__(self,path=None,by_patient=False,expansion=0,
+                 shuffle=True):
+        self.shuffle = shuffle
         self.expansion = expansion
-        if resize_class:
-            self.resize_class = resize_class
         self.start_stop_dict = {}
-        self.num_patients = num_patients
         self.patient_dict = {}
-        self.verbose = verbose
-        self.file_batches = []
-        self.by_patient = by_patient
-        self.data_path = path
         self.file_list = []
-        self.file_ext = '.npy'
         if path:
             if 'descriptions_start_and_stop.pkl' in os.listdir(path):
                 self.start_stop_dict = load_obj(os.path.join(path, 'descriptions_start_and_stop.pkl'))
             if os.path.exists(path):
                 for file in os.listdir(path):
-                    if file.find('.npy') == -1 and file.find('.nii.gz') == -1:
+                    if file.find('.nii.gz') == -1:
                         continue
                     if file.find('_annotation.') == -1:
-                        if file.find('.nii.gz') != -1:
-                            self.file_ext = '.nii.gz'
                         self.file_list.append(os.path.join(path, file))
-            elif self.verbose:
-                print(path)
-                print('Wrong path')
+            else:
+                print('Wrong path! {}'.format(path))
         self.load_file_list = self.file_list[:]
         self.make_patient_list()
-        if self.by_patient:
-            self.prep_batches()
 
     def make_patient_list(self):
         self.patient_dict = {}
         self.patient_dict_indexes = {}
         self.start_stop_dict_local = {}
-        if not self.file_list and self.verbose:
-            print('No files found')
         for file in self.file_list:
             broken_up = file.split('\\')
             if len(broken_up) == 1:
                 broken_up = file.split('/')
             broken_up = broken_up[-1].split('_')
-            if broken_up[-1].find('image') == 0: # Making everything back compatible with the new style of passing data
-                slice_num = int(broken_up[-2])
-                description = ''
-                for i in broken_up[:-2]:
-                    description += i + '_'
-                description = description[:-1]
-            else:
-                slice_num = int(broken_up[-1].split('.')[0])
-                description = ''
-                for i in broken_up[:-1]:
-                    description += i + '_'
-                description = description[:-1]
+            slice_num = int(broken_up[-1].split('.')[0])
+            description = ''
+            for i in broken_up[:-1]:
+                description += i + '_'
+            description = description[:-1]
             start, stop = None, None
             values = None
             if description in self.start_stop_dict.keys() and description not in self.start_stop_dict_local.keys():
@@ -1766,39 +1668,5 @@ class Post_Processing(Sequence):
     def on_epoch_end(self):
         self.generator.on_epoch_end()
         return None
-# class Predict_From_Trained_Model(object):
-#     def __init__(self,model_path,Bilinear_model=None,gpu=0): #gpu=0,graph1=Graph(),session1=Session(config=ConfigProto(log_device_placement=False)),
-#         print('loaded vgg model ' + model_path)
-#         import tensorflow as tf
-#         G = get_available_gpus()
-#         if len(G) == 1:
-#             gpu = 0
-#         gpus = tf.config.experimental.list_physical_devices('GPU')
-#         print(gpus)
-#         self.graph = tf.Graph()
-#         # Restrict TensorFlow to only use the first GPU
-#         for index in range(len(gpus)):
-#             if gpus[index].name.find(str(gpu)) != -1:
-#                 print('Set GPU to: ' + gpus[index].name)
-#                 tf.config.experimental.set_visible_devices(gpus[index], 'GPU')
-#                 break
-#         tf.debugging.set_log_device_placement(True)
-#         self.gpu = gpu
-#         self.device = tf.device('/GPU:' + str(self.gpu))
-#         with self.device:
-#             with self.graph.as_default():
-#                 gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
-#                 self.sess = tf.compat.v1.Session(
-#                     config=tf.compat.v1.ConfigProto(gpu_options=gpu_options, log_device_placement=False))
-#                 with self.sess.as_default():
-#                     print('loading VGG Pretrained')
-#                     self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D})
-#                     print('finished loading')
-#
-#     def predict(self,images):
-#         with self.device:
-#             with self.graph.as_default():
-#                 with self.sess.as_default():
-#                     return self.vgg_model_base.predict(images)
 if __name__ == '__main__':
     xxx = 1

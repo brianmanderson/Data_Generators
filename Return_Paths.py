@@ -7,14 +7,20 @@ class Path_Return_Class(object):
         for path in [base_path,morfeus_path]:
             assert os.path.exists(path), print(path + ' path does not exist')
 
-    def define_model_things(self, model_name, *args):
+    def define_model_things(self, model_name, *args, **kwargs):
         '''
         :param args: Send in a list of arguments, I recommend Model_Name, Architecture, Image_Characteristics, Hyper_parameters
         :return:
         '''
         self.model_distinctions = [model_name]
+        for key in kwargs:
+            self.model_distinctions.append('{}_{}'.format(kwargs[key],key))
         for arg in args:
-            self.model_distinctions.append(arg)
+            if type(arg) is list:
+                for i in arg:
+                    self.model_distinctions.append(i)
+            else:
+                self.model_distinctions.append(arg)
         self.create_out_paths()
 
     def create_out_paths(self):
