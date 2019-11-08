@@ -1585,7 +1585,8 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
 
 
 class Image_Clipping_and_Padding(Sequence):
-    def __init__(self, layers_dict, generator, return_mask=False, liver_box=False):
+    def __init__(self, layers_dict, generator, return_mask=False, liver_box=False, mask_output=False):
+        self.mask_output = mask_output
         self.patient_dict = {}
         self.liver_box = liver_box
         self.generator = generator
@@ -1634,6 +1635,8 @@ class Image_Clipping_and_Padding(Sequence):
         out_annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = y[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
         if self.return_mask:
             return [out_images,np.sum(out_annotations[...,1:],axis=-1)[...,None]], out_annotations
+        if self.mask_output:
+            out_images[out_annotations[...,0] == 1] = -3.55
         return out_images, out_annotations
 
     def __len__(self):
