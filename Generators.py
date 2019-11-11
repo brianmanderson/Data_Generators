@@ -143,25 +143,20 @@ class image_loader(object):
             return out_image, out_annotations
         if dif_1 != 0:
             if dif_1 > 0:
-                images = np.concatenate((images, images[:, :dif_1//2, :]),axis=1)
-                images = np.concatenate((images[:, -dif_1//2:, :], images),axis=1)
-                annotations = np.concatenate((annotations, annotations[:, :dif_1//2, :]),axis=1)
-                annotations = np.concatenate((annotations[:, -dif_1//2:, :], annotations),axis=1)
+                images = np.concatenate((images, images[:, :dif_1//2, ...]),axis=1)
+                images = np.concatenate((images[:, -dif_1//2:, ...], images),axis=1)
+                annotations = np.concatenate((annotations, annotations[:, :dif_1//2, ...]),axis=1)
+                annotations = np.concatenate((annotations[:, -dif_1//2:, ...], annotations),axis=1)
             elif dif_1 < 0:
                 images = images[:, abs(dif_1)//2:-abs(dif_1//2), ...]
                 annotations = annotations[:, abs(dif_1)//2:-abs(dif_1//2), ...]
-        if images.shape[2] != image_size:
-            difference_2 = image_size - images.shape[2]
-            if difference_2 > 0:
-                images = np.concatenate((images, images[:, :, :dif_2//2 + add_2]),
-                                        axis=2)
-                images = np.concatenate((images[:, :, -dif_2//2:], images),
-                                        axis=2)
-                annotations = np.concatenate((annotations, annotations[:, :, :dif_2//2 + add_2]),
-                                        axis=2)
-                annotations = np.concatenate((annotations[:, :, -dif_2//2:], annotations),
-                                        axis=2)
-            elif difference_2 < 0:
+        if dif_2 != 0:
+            if dif_2 > 0:
+                images = np.concatenate((images, images[:, :, :dif_2//2, ...]),axis=2)
+                images = np.concatenate((images[:, :, -dif_2//2:, ...], images),axis=2)
+                annotations = np.concatenate((annotations, annotations[:, :, :dif_2//2, ...]),axis=2)
+                annotations = np.concatenate((annotations[:, :, -dif_2//2:, ...], annotations),axis=2)
+            elif dif_2 < 0:
                 images = images[:, :, abs(dif_2)//2:-abs(dif_2//2), ...]
                 annotations = annotations[:, :, abs(dif_2)//2:-abs(dif_2//2), ...]
         return images, annotations
