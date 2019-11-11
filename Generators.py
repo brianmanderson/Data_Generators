@@ -130,10 +130,16 @@ class image_loader(object):
         dif_1 = (image_size - images.shape[1])
         dif_2 = (image_size - images.shape[2])
         if dif_1 > 0 and dif_2 > 0:
-            out_image = np.ones([1, image_size, image_size],dtype=images.dtype) * np.min(images)
-            out_annotations = np.zeros([1, image_size, image_size],dtype=annotations.dtype)
-            out_image[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2]] = images
-            out_annotations[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2]] = annotations
+            out_image_size = list(images.shape)
+            out_image_size[1] = image_size
+            out_image_size[2] = image_size
+            out_annotations_size = list(images.shape)
+            out_annotations_size[1] = image_size
+            out_annotations_size[2] = image_size
+            out_image = np.ones(out_image_size,dtype=images.dtype) * np.min(images)
+            out_annotations = np.zeros(out_annotations_size,dtype=annotations.dtype)
+            out_image[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2],...] = images
+            out_annotations[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2],...] = annotations
             return out_image, out_annotations
         if dif_1 != 0:
             if dif_1 > 0:
@@ -142,24 +148,22 @@ class image_loader(object):
                 annotations = np.concatenate((annotations, annotations[:, :dif_1//2, :]),axis=1)
                 annotations = np.concatenate((annotations[:, -dif_1//2:, :], annotations),axis=1)
             elif dif_1 < 0:
-                images = images[:, :dif_1//2, :]
-                images = images[:, abs(dif_1//2):, :]
-                annotations = annotations[:, :dif_1//2, :]
-                annotations = annotations[:, abs(dif_1//2):, :]
+                images = images[:, abs(dif_1)//2:-abs(dif_1//2), ...]
+                annotations = annotations[:, abs(dif_1)//2:-abs(dif_1//2), ...]
         if images.shape[2] != image_size:
             difference_2 = image_size - images.shape[2]
             if difference_2 > 0:
-                images = np.concatenate((images, images[:, :, :dif_2//2]),
+                images = np.concatenate((images, images[:, :, :dif_2//2 + add_2]),
                                         axis=2)
                 images = np.concatenate((images[:, :, -dif_2//2:], images),
                                         axis=2)
-                annotations = np.concatenate((annotations, annotations[:, :, :dif_2//2]),
+                annotations = np.concatenate((annotations, annotations[:, :, :dif_2//2 + add_2]),
                                         axis=2)
                 annotations = np.concatenate((annotations[:, :, -dif_2//2:], annotations),
                                         axis=2)
             elif difference_2 < 0:
-                images = images[:, :, abs(dif_2//2):dif_2//2]
-                annotations = annotations[:, :, abs(dif_2//2):dif_2//2]
+                images = images[:, :, abs(dif_2)//2:-abs(dif_2//2), ...]
+                annotations = annotations[:, :, abs(dif_2)//2:-abs(dif_2//2), ...]
         return images, annotations
 
     def give_resized_images(self, images_temp, annotations_temp):
@@ -255,8 +259,8 @@ class image_loader(object):
                             block = (2,2,1)
                         images_temp = block_reduce(images_temp[0,...], block, np.average).astype('float32')[None,...]
                         annotations_temp = block_reduce(annotations_temp[0,...].astype('int'), block, np.max).astype('int')[None,...]
-                    elif images_temp.shape[1] <= self.image_size / 2 or images_temp.shape[2] <= self.image_size / 2:
-                        images_temp, annotations_temp = self.give_resized_images(images_temp, annotations_temp)
+                    # elif images_temp.shape[1] <= self.image_size / 2 or images_temp.shape[2] <= self.image_size / 2:
+                    #     images_temp, annotations_temp = self.give_resized_images(images_temp, annotations_temp)
                     if images_temp.shape[0] != 1:
                         images_temp = images_temp[None,...]
                         annotations_temp = annotations_temp[None,...]
