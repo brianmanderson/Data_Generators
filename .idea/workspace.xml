@@ -2,7 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="584ca10d-5edc-4ac2-9f0c-83e01541525d" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/Plot_And_Scroll_Images/Plot_Scroll_Images.py" beforeDir="false" afterPath="$PROJECT_DIR$/Plot_And_Scroll_Images/Plot_Scroll_Images.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Generators.py" beforeDir="false" afterPath="$PROJECT_DIR$/Generators.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Niftii_Generators.py" beforeDir="false" afterPath="$PROJECT_DIR$/Niftii_Generators.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -15,24 +16,28 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/Niftii_Generators.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="187">
-              <caret line="11" lean-forward="true" selection-start-line="11" selection-end-line="11" />
+            <state relative-caret-position="51">
+              <caret line="12" selection-start-line="12" selection-end-line="18" selection-end-column="32" />
               <folding>
-                <element signature="e#0#42#0" expanded="true" />
+                <element signature="e#3003#14833#0" />
+                <element signature="e#4188#11730#0" />
+                <element signature="e#11792#12560#0" />
+                <element signature="e#12435#12697#0" />
+                <element signature="e#12861#15269#0" />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/Plot_And_Scroll_Images/Plot_Scroll_Images.py">
+        <entry file="file://$PROJECT_DIR$/Generators.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="221">
-              <caret line="60" lean-forward="true" selection-start-line="60" selection-end-line="60" />
+            <state relative-caret-position="308">
+              <caret line="116" column="32" selection-start-line="116" selection-start-column="32" selection-end-line="116" selection-end-column="32" />
               <folding>
-                <element signature="e#0#11#0" expanded="true" />
-                <element signature="e#95#786#0" />
-                <element signature="e#820#1674#0" />
+                <element signature="e#0#42#0" expanded="true" />
+                <element signature="e#4353#6453#0" />
+                <element signature="e#11174#12307#0" />
               </folding>
             </state>
           </provider>
@@ -43,6 +48,10 @@
   <component name="FindInProjectRecents">
     <findStrings>
       <find>plt</find>
+      <find>remove_non_liver</find>
+      <find>image_loader</find>
+      <find>self.file_list =</find>
+      <find>plot_scroll_image</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -51,8 +60,9 @@
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/Niftii_Generators.py" />
         <option value="$PROJECT_DIR$/Plot_And_Scroll_Images/Plot_Scroll_Images.py" />
+        <option value="$PROJECT_DIR$/Niftii_Generators.py" />
+        <option value="$PROJECT_DIR$/Generators.py" />
       </list>
     </option>
   </component>
@@ -73,11 +83,6 @@
             <path>
               <item name="Data_Generators" type="b2602c69:ProjectViewProjectNode" />
               <item name="Data_Generators" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="Data_Generators" type="b2602c69:ProjectViewProjectNode" />
-              <item name="Data_Generators" type="462c0819:PsiDirectoryNode" />
-              <item name="Plot_And_Scroll_Images" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
           <select />
@@ -113,12 +118,12 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1575235781955</updated>
-      <workItem from="1575235783381" duration="235000" />
+      <workItem from="1575235783381" duration="3190000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="235000" />
+    <option name="totallyTimeSpent" value="3190000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="-8" y="-8" width="1382" height="744" extended-state="6" />
@@ -130,8 +135,8 @@
       <window_info anchor="bottom" id="Docker" show_stripe_button="false" />
       <window_info anchor="bottom" id="Database Changes" />
       <window_info anchor="bottom" id="Version Control" />
-      <window_info anchor="bottom" id="Python Console" />
-      <window_info active="true" anchor="bottom" id="Terminal" visible="true" weight="0.3289689" />
+      <window_info active="true" anchor="bottom" id="Python Console" visible="true" weight="0.3289689" />
+      <window_info anchor="bottom" id="Terminal" weight="0.3289689" />
       <window_info anchor="bottom" id="Event Log" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" />
@@ -151,16 +156,6 @@
     <option name="version" value="1" />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/Niftii_Generators.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="187">
-          <caret line="11" lean-forward="true" selection-start-line="11" selection-end-line="11" />
-          <folding>
-            <element signature="e#0#42#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/Plot_And_Scroll_Images/Plot_Scroll_Images.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="221">
@@ -169,6 +164,32 @@
             <element signature="e#0#11#0" expanded="true" />
             <element signature="e#95#786#0" />
             <element signature="e#820#1674#0" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/Niftii_Generators.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="51">
+          <caret line="12" selection-start-line="12" selection-end-line="18" selection-end-column="32" />
+          <folding>
+            <element signature="e#3003#14833#0" />
+            <element signature="e#4188#11730#0" />
+            <element signature="e#11792#12560#0" />
+            <element signature="e#12435#12697#0" />
+            <element signature="e#12861#15269#0" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/Generators.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="308">
+          <caret line="116" column="32" selection-start-line="116" selection-start-column="32" selection-end-line="116" selection-end-column="32" />
+          <folding>
+            <element signature="e#0#42#0" expanded="true" />
+            <element signature="e#4353#6453#0" />
+            <element signature="e#11174#12307#0" />
           </folding>
         </state>
       </provider>

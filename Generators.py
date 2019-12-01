@@ -7,7 +7,7 @@ from skimage.measure import block_reduce
 import cv2, os, copy, glob, pickle
 import numpy as np
 from scipy.ndimage import interpolation, filters
-
+from Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image
 import SimpleITK as sitk
 import math
 
@@ -22,27 +22,6 @@ def dice_coef_3D(y_true, y_pred, smooth=0.0001):
     union = K.sum(y_true[...,1:]) + K.sum(y_pred[...,1:])
     return (2. * intersection + smooth) / (union + smooth)
 
-def plot_scroll_Image(x):
-    '''
-    :param x: input to view of form [rows, columns, # images]
-    :return:
-    '''
-    if x.dtype not in ['float32','float64']:
-        x = copy.deepcopy(x).astype('float32')
-    if len(x.shape) > 3:
-        x = np.squeeze(x)
-    if len(x.shape) == 3:
-        if x.shape[0] != x.shape[1]:
-            x = np.transpose(x,[1,2,0])
-        elif x.shape[0] == x.shape[2]:
-            x = np.transpose(x, [1, 2, 0])
-    fig, ax = plt.subplots(1, 1)
-    if len(x.shape) == 2:
-        x = np.expand_dims(x,axis=0)
-    tracker = IndexTracker(ax, x)
-    fig.canvas.mpl_connect('scroll_event', tracker.onscroll)
-    return fig,tracker
-    #Image is input in the form of [#images,512,512,#channels]
 
 def load_obj(path):
     if path.find('.pkl') == -1:
@@ -53,6 +32,7 @@ def load_obj(path):
     else:
         out = {}
         return out
+
 
 class IndexTracker(object):
     def __init__(self, ax, X):
@@ -108,9 +88,75 @@ def remove_non_liver(annotations, threshold=0.5, volume_threshold=9999999):
     return annotations
 
 
+class Image_Processor(object):
+
+    def pre_process(self, image, annotation):
+        return image, annotation
+
+    def nusance_process(self, image, annotation):
+        return image, annotation
+
+
+class Ensure_Image_Proportions(Image_Processor):
+    def __init__(self, image_size=512):
+        self.image_size = image_size
+
+    def convert_image_size(self, images, annotations, image_size):
+        dif_1 = (image_size - images.shape[1])
+        dif_2 = (image_size - images.shape[2])
+        if dif_1 > 0 and dif_2 > 0:
+            out_image_size = list(images.shape)
+            out_image_size[1] = image_size
+            out_image_size[2] = image_size
+            out_annotations_size = list(images.shape)
+            out_annotations_size[1] = image_size
+            out_annotations_size[2] = image_size
+            out_image = np.ones(out_image_size,dtype=images.dtype) * np.min(images)
+            out_annotations = np.zeros(out_annotations_size,dtype=annotations.dtype)
+            out_image[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2],...] = images
+            out_annotations[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2],...] = annotations
+            return out_image, out_annotations
+        if dif_1 != 0:
+            if dif_1 > 0:
+                images = np.concatenate((images, images[:, :dif_1//2, ...]),axis=1)
+                images = np.concatenate((images[:, -dif_1//2:, ...], images),axis=1)
+                annotations = np.concatenate((annotations, annotations[:, :dif_1//2, ...]),axis=1)
+                annotations = np.concatenate((annotations[:, -dif_1//2:, ...], annotations),axis=1)
+            elif dif_1 < 0:
+                images = images[:, abs(dif_1)//2:-abs(dif_1//2), ...]
+                annotations = annotations[:, abs(dif_1)//2:-abs(dif_1//2), ...]
+        if dif_2 != 0:
+            if dif_2 > 0:
+                images = np.concatenate((images, images[:, :, :dif_2//2, ...]),axis=2)
+                images = np.concatenate((images[:, :, -dif_2//2:, ...], images),axis=2)
+                annotations = np.concatenate((annotations, annotations[:, :, :dif_2//2, ...]),axis=2)
+                annotations = np.concatenate((annotations[:, :, -dif_2//2:, ...], annotations),axis=2)
+            elif dif_2 < 0:
+                images = images[:, :, abs(dif_2)//2:-abs(dif_2//2), ...]
+                annotations = annotations[:, :, abs(dif_2)//2:-abs(dif_2//2), ...]
+        return images, annotations
+
+    def pre_process(self, image, annotation):
+        if image.shape[1] != self.image_size or image.shape[2] != self.image_size:
+            if image.shape[1] >= self.image_size * 2 and image.shape[2] >= self.image_size * 2:
+                if len(annotation.shape) == 3:
+                    block = (2, 2)
+                else:
+                    block = (2, 2, 1)
+                image = block_reduce(image[0, ...], block, np.average).astype('float32')[None, ...]
+                annotation = block_reduce(annotation[0, ...].astype('int'), block, np.max).astype('int')[
+                    None, ...]
+            if image.shape[0] != 1:
+                image = image[None, ...]
+                annotation = annotation[None, ...]
+            image, annotation = self.convert_image_size(image, annotation,self.image_size)
+        return image, annotation
+
 class image_loader(object):
     def __init__(self,image_size=512,perturbations=None, three_channel=False, by_patient=False,
-                 resize_class=None, random_start=True, final_steps=None, all_images=False, save_and_reload=True):
+                 resize_class=None, random_start=True, final_steps=None, all_images=False, save_and_reload=True,
+                 image_processors=None):
+        self.image_processors = image_processors
         self.save_and_reload = save_and_reload
         self.patient_dict_indexes = {}
         self.image_dictionary = {}
@@ -246,6 +292,8 @@ class image_loader(object):
                         images_temp = sitk.GetArrayFromImage(images_temp_handle)[None,...]
                         annotations_temp_handle = sitk.ReadImage(image_name.replace('_image.nii.gz','_annotation.nii.gz'))
                         annotations_temp = sitk.GetArrayFromImage(annotations_temp_handle)[None,...]
+                for image_processors in self.image_processors:
+                    images_temp, annotations_temp = image_processors.pre_process(images_temp, annotations_temp)
                 if (make_changes or not self.by_patient) or (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
                     if images_temp.shape[1] >= self.image_size*2 and images_temp.shape[2] >= self.image_size*2:
                         if len(annotations_temp.shape) == 3:
@@ -254,8 +302,6 @@ class image_loader(object):
                             block = (2,2,1)
                         images_temp = block_reduce(images_temp[0,...], block, np.average).astype('float32')[None,...]
                         annotations_temp = block_reduce(annotations_temp[0,...].astype('int'), block, np.max).astype('int')[None,...]
-                    # elif images_temp.shape[1] <= self.image_size / 2 or images_temp.shape[2] <= self.image_size / 2:
-                    #     images_temp, annotations_temp = self.give_resized_images(images_temp, annotations_temp)
                     if images_temp.shape[0] != 1:
                         images_temp = images_temp[None,...]
                         annotations_temp = annotations_temp[None,...]
@@ -373,6 +419,7 @@ class image_loader(object):
 
     def return_images(self):
         return self.images, self.annotations
+
 
 class Data_Set_Reader(image_loader):
     def __init__(self,path=None,image_size=512,perturbations=None, three_channel=False, by_patient=False,verbose=True,
