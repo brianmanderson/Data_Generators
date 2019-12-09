@@ -1670,7 +1670,16 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
 
 
 class Image_Clipping_and_Padding(Sequence):
-    def __init__(self, layers_dict, generator, return_mask=False, liver_box=False, mask_output=False):
+    def __init__(self, layers_dict, generator, return_mask=False, liver_box=False, mask_output=False, bounding_box_expansion=(5,10,10)):
+        '''
+        :param layers_dict: Dictionary of layers for model, Layer_0, Layer_1, Base, etc.
+        :param generator: a data generator
+        :param return_mask: return the mask used for masking input data
+        :param liver_box: use a bounding box
+        :param mask_output: mask the image data
+        :param bounding_box_expansion: z, x, y expansions for bounding box
+        '''
+        self.bounding_box_expansion = bounding_box_expansion
         self.mask_output = mask_output
         self.patient_dict = {}
         self.liver_box = liver_box
@@ -1695,12 +1704,12 @@ class Image_Clipping_and_Padding(Sequence):
         if self.liver_box:
             liver = np.argmax(y,axis=-1)
             z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
-            z_start = max([0,z_start-5])
-            z_stop = min([z_stop+5,x.shape[1]])
-            r_start = max([0,r_start-10])
-            r_stop = min([512,r_stop+10])
-            c_start = max([0,c_start-10])
-            c_stop = min([512,c_stop+10])
+            z_start = max([0,z_start-self.bounding_box_expansion[0]])
+            z_stop = min([z_stop+self.bounding_box_expansion[0],x.shape[1]])
+            r_start = max([0,r_start-self.bounding_box_expansion[1]])
+            r_stop = min([512,r_stop+self.bounding_box_expansion[1]])
+            c_start = max([0,c_start-self.bounding_box_expansion[2]])
+            c_stop = min([512,c_stop+self.bounding_box_expansion[2]])
         else:
             z_start = 0
             z_stop = x.shape[1]
