@@ -156,6 +156,8 @@ class image_loader(object):
     def __init__(self,image_size=512,perturbations=None, three_channel=False, by_patient=False,
                  resize_class=None, random_start=True, final_steps=None, all_images=False, save_and_reload=True,
                  image_processors=None):
+        if image_processors is None:
+            image_processors = []
         self.image_processors = image_processors
         self.save_and_reload = save_and_reload
         self.patient_dict_indexes = {}
