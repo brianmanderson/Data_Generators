@@ -40,6 +40,11 @@ class Normalize_Images(Image_Processor):
 
 class Perturbation_Class(Image_Processor):
     def __init__(self,pertubartions,image_shape, by_patient):
+        '''
+        :param pertubartions: Dictionary of keys for perturbations, examples are 'Shift', 'Rotation', '2D_Random'
+        :param image_shape:
+        :param by_patient:
+        '''
         self.by_patient = by_patient
         self.pertubartions = pertubartions
         self.output_annotation_template = np.zeros(image_shape)
@@ -84,9 +89,7 @@ class Perturbation_Class(Image_Processor):
         min_val = np.min(images)
         images -= min_val # This way any rotation gets a 0, irrespective of previous normalization
         for key in self.pertubartions.keys():
-
             variation = self.pertubartions[key][np.random.randint(0, len(self.pertubartions[key]))]
-
             if key == 'Rotation':   # 'Rotation': np.arange(start=-5, stop=6, step=1)
                 shape_size_image = shape_size_annotation = self.image_shape[1]
                 if variation not in self.M_image.keys():
