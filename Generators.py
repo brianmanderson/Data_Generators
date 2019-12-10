@@ -12,6 +12,30 @@ import SimpleITK as sitk
 import math
 
 
+class Image_Processor(object):
+
+    def pre_process(self, image, annotation):
+        return image, annotation
+
+    def nusance_process(self, image, annotation):
+        return image, annotation
+
+
+
+class Normalize_Images(Image_Processor):
+    def __init__(self, mean_val=0, std_val=1, lower_bound=-np.inf, upper_bound=np.inf):
+        self.mean_val, self.std_val, self.lower, self.upper = mean_val, std_val, lower_bound, upper_bound
+
+    def pre_process(self, image, annotation):
+        image = (image - self.mean_val)/self.std_val
+        image[image<self.lower] = self.lower
+        image[image>self.upper] = self.upper
+        return image, annotation
+
+    def nusance_process(self, image, annotation):
+        return image, annotation
+
+
 def get_available_gpus():
     from tensorflow.python.client import device_lib
     local_device_protos = device_lib.list_local_devices()
@@ -427,7 +451,7 @@ class image_loader(object):
 class Data_Set_Reader(image_loader):
     def __init__(self,path=None,image_size=512,perturbations=None, three_channel=False, by_patient=False,verbose=True,
                  num_patients=1, resize_class=None,is_test_set=False, random_start=True,save_and_reload=True,
-                 expansion = 0,final_steps=None, shuffle_images=True, wanted_indexes=None):
+                 expansion = 0,final_steps=None, shuffle_images=True, wanted_indexes=None,image_processors=None):
         '''
         :param path:
         :param image_size:
@@ -445,8 +469,9 @@ class Data_Set_Reader(image_loader):
         :param wanted_indexes: a tuple of indexes wanted (2) will pull disease only if 1 is liver
         '''
         super().__init__(image_size=image_size,perturbations=perturbations, three_channel=three_channel,
-                              by_patient=by_patient,resize_class=resize_class, random_start=random_start,
-                              final_steps=final_steps, all_images=is_test_set, save_and_reload=save_and_reload)
+                         by_patient=by_patient,resize_class=resize_class, random_start=random_start,
+                         final_steps=final_steps, all_images=is_test_set, save_and_reload=save_and_reload,
+                         image_processors=image_processors)
         self.wanted_indexes = wanted_indexes
         self.shuffle_images = shuffle_images
         self.expansion = expansion
@@ -1410,7 +1435,8 @@ def get_bounding_box(train_images_out_base, train_annotations_out_base, include_
 class Train_Data_Generator_class(Sequence):
 
     def __init__(self, image_size=512, perturbations=None, three_channel=True,whole_patient=True,num_of_classes=2,wanted_indexes=None,
-                 data_paths=None, num_patients=1,is_test_set=False, expansion=0,shuffle=False, batch_size=1, all_for_one=False, save_and_reload=True):
+                 data_paths=None, num_patients=1,is_test_set=False, expansion=0,shuffle=False, batch_size=1,
+                 all_for_one=False, save_and_reload=True,image_processors=None):
         '''
         :param image_size: Image size
         :param three_layer: make three layer
@@ -1425,6 +1451,7 @@ class Train_Data_Generator_class(Sequence):
         :param final_steps:
         :param save_and_load:
         '''
+        self.image_processors = image_processors
         self.save_and_reload = save_and_reload
         self.max_patients = np.inf
         self.image_size = image_size
@@ -1438,7 +1465,7 @@ class Train_Data_Generator_class(Sequence):
         self.three_channel = three_channel
         self.train_dataset_reader = Data_Set_Reader(perturbations=perturbations,
                                                     image_size=image_size, three_channel=self.three_channel,
-                                                    by_patient=whole_patient,
+                                                    by_patient=whole_patient,image_processors=image_processors,
                                                     num_patients=num_patients, is_test_set=is_test_set,
                                                     expansion=expansion,save_and_reload=save_and_reload,
                                                     final_steps=None, verbose=False, wanted_indexes=wanted_indexes)
@@ -1453,7 +1480,8 @@ class Train_Data_Generator_class(Sequence):
                 print('Nothin in data path:' + path)
             models[path] = Data_Set_Reader(
                 path=path, by_patient=whole_patient,  num_patients=num_patients,three_channel=self.three_channel,
-                is_test_set=is_test_set, expansion=expansion, wanted_indexes=wanted_indexes, save_and_reload=self.save_and_reload) #Always 1
+                image_processors=self.image_processors,is_test_set=is_test_set, expansion=expansion,
+                wanted_indexes=wanted_indexes, save_and_reload=self.save_and_reload) #Always 1
             self.train_dataset_reader.patient_dict_indexes.update(models[path].patient_dict_indexes)
         return models
 
@@ -1544,7 +1572,8 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
                  num_classes=2, flatten=False,noise=0.0,prediction_class=None,output_size = None,save_and_reload=True,
                  data_paths=None, shuffle=False, all_for_one=False, write_predictions = False,is_auto_encoder=False,
                  num_patients=1,is_test_set=False, expansion=0, clip=0,mean_val=0, std_val=1,auto_normalize=False,
-                 max_image_size=999,skip_correction=False, normalize_to_value=None, wanted_indexes=None, z_images=32):
+                 max_image_size=999,skip_correction=False, normalize_to_value=None, wanted_indexes=None, z_images=32,
+                 image_processors=None):
         '''
         :param image_size:
         :param batch_size:
@@ -1574,8 +1603,11 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         :param wanted_indexes:
         :param z_images:
         '''
-        super().__init__(image_size=image_size, perturbations=perturbations, three_channel=three_layer,whole_patient=whole_patient, num_of_classes=num_classes,save_and_reload=save_and_reload,
-                 data_paths=data_paths, num_patients=num_patients,is_test_set=is_test_set, expansion=expansion,shuffle=shuffle, batch_size=batch_size, all_for_one=all_for_one, wanted_indexes=wanted_indexes)
+        super().__init__(image_size=image_size, perturbations=perturbations, three_channel=three_layer,
+                         whole_patient=whole_patient, num_of_classes=num_classes,save_and_reload=save_and_reload,
+                         data_paths=data_paths, num_patients=num_patients,is_test_set=is_test_set, expansion=expansion,
+                         shuffle=shuffle, batch_size=batch_size, all_for_one=all_for_one, wanted_indexes=wanted_indexes,
+                         image_processors=image_processors)
         self.perturbations = perturbations
         self.is_test_set = is_test_set
         self.index_data = {}
