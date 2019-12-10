@@ -13,16 +13,17 @@ import math
 
 
 class Image_Processor(object):
-    def single_image_pre_process(self, image, annotation):
+    def preload_single_image_process(self, image, annotation):
         '''
-        This is for image processes done loading on a slice by slice basis, like normalizing a CT slice
+        This is for image processes done loading on a slice by slice basis that only need to be done once, like
+        normalizing a CT slice
         :param image:
         :param annotation:
         :return:
         '''
         return image, annotation
 
-    def batch_image_pre_process(self, images, annotations):
+    def batch_image_process(self, images, annotations):
         '''
         This is for image processes done loading on a patient by patient basis, like normalizing an MR head scan
         :param images:
@@ -40,7 +41,7 @@ class Normalize_Images(Image_Processor):
     def __init__(self, mean_val=0, std_val=1, lower_bound=-np.inf, upper_bound=np.inf):
         self.mean_val, self.std_val, self.lower, self.upper = mean_val, std_val, lower_bound, upper_bound
 
-    def single_image_pre_process(self, image, annotation):
+    def preload_single_image_process(self, image, annotation):
         image = (image - self.mean_val)/self.std_val
         image[image<self.lower] = self.lower
         image[image>self.upper] = self.upper
@@ -331,7 +332,7 @@ class image_loader(object):
                         annotations_temp_handle = sitk.ReadImage(image_name.replace('_image.nii.gz','_annotation.nii.gz'))
                         annotations_temp = sitk.GetArrayFromImage(annotations_temp_handle)[None,...]
                 for image_processors in self.image_processors:
-                    images_temp, annotations_temp = image_processors.single_image_pre_process(images_temp, annotations_temp)
+                    images_temp, annotations_temp = image_processors.preload_single_image_process(images_temp, annotations_temp)
                 if (make_changes or not self.by_patient) or (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
                     if images_temp.shape[1] >= self.image_size*2 and images_temp.shape[2] >= self.image_size*2:
                         if len(annotations_temp.shape) == 3:
@@ -357,7 +358,7 @@ class image_loader(object):
             annotations[index] = np.squeeze(annotations_temp)
 
         for image_processors in self.image_processors:
-            images, annotations = image_processors.batch_image_pre_process(images, annotations)
+            images, annotations = image_processors.batch_image_process(images, annotations)
         if self.perturbations:
             if not self.by_patient:
                 for i in range(len(image_names)):
