@@ -331,7 +331,7 @@ class image_loader(object):
                         annotations_temp_handle = sitk.ReadImage(image_name.replace('_image.nii.gz','_annotation.nii.gz'))
                         annotations_temp = sitk.GetArrayFromImage(annotations_temp_handle)[None,...]
                 for image_processors in self.image_processors:
-                    images_temp, annotations_temp = image_processors.pre_process(images_temp, annotations_temp)
+                    images_temp, annotations_temp = image_processors.single_image_pre_process(images_temp, annotations_temp)
                 if (make_changes or not self.by_patient) or (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
                     if images_temp.shape[1] >= self.image_size*2 and images_temp.shape[2] >= self.image_size*2:
                         if len(annotations_temp.shape) == 3:
@@ -356,7 +356,8 @@ class image_loader(object):
             images[index] = np.squeeze(images_temp)
             annotations[index] = np.squeeze(annotations_temp)
 
-
+        for image_processors in self.image_processors:
+            images, annotations = image_processors.batch_image_pre_process(images, annotations)
         if self.perturbations:
             if not self.by_patient:
                 for i in range(len(image_names)):
