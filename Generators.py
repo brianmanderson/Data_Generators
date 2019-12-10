@@ -13,9 +13,23 @@ import math
 
 
 class Image_Processor(object):
-
-    def pre_process(self, image, annotation):
+    def single_image_pre_process(self, image, annotation):
+        '''
+        This is for image processes done loading on a slice by slice basis, like normalizing a CT slice
+        :param image:
+        :param annotation:
+        :return:
+        '''
         return image, annotation
+
+    def batch_image_pre_process(self, images, annotations):
+        '''
+        This is for image processes done loading on a patient by patient basis, like normalizing an MR head scan
+        :param images:
+        :param annotations:
+        :return:
+        '''
+        return images, annotations
 
     def nusance_process(self, image, annotation):
         return image, annotation
@@ -26,13 +40,10 @@ class Normalize_Images(Image_Processor):
     def __init__(self, mean_val=0, std_val=1, lower_bound=-np.inf, upper_bound=np.inf):
         self.mean_val, self.std_val, self.lower, self.upper = mean_val, std_val, lower_bound, upper_bound
 
-    def pre_process(self, image, annotation):
+    def single_image_pre_process(self, image, annotation):
         image = (image - self.mean_val)/self.std_val
         image[image<self.lower] = self.lower
         image[image>self.upper] = self.upper
-        return image, annotation
-
-    def nusance_process(self, image, annotation):
         return image, annotation
 
 
