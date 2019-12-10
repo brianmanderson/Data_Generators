@@ -11,6 +11,7 @@ from Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image
 import SimpleITK as sitk
 import math
 
+
 def get_available_gpus():
     from tensorflow.python.client import device_lib
     local_device_protos = device_lib.list_local_devices()
@@ -156,6 +157,8 @@ class image_loader(object):
     def __init__(self,image_size=512,perturbations=None, three_channel=False, by_patient=False,
                  resize_class=None, random_start=True, final_steps=None, all_images=False, save_and_reload=True,
                  image_processors=None):
+        if image_processors is None:
+            image_processors = []
         self.image_processors = image_processors
         self.save_and_reload = save_and_reload
         self.patient_dict_indexes = {}
