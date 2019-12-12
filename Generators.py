@@ -1,4 +1,6 @@
-from keras.utils import Sequence, np_utils
+#from keras.utils import Sequence, np_utils
+from keras.utils import np_utils
+from tensorflow.python.keras.utils.data_utils import Sequence
 import keras.backend as K
 from keras.models import load_model
 import matplotlib.pyplot as plt
@@ -651,7 +653,7 @@ class Pertubartion_Class:
                 if variation != 0:
 
                     # generate random parameter --- will be the same for all slices of the same patients
-                    # for 3D use dz with same pattern than dx/dy
+                    # for 3D use dz with same pattern than dx/dy - see commented lines
                     random_state = np.random.RandomState(None)
 
                     if len(images.shape) > 2:
@@ -734,7 +736,36 @@ class Pertubartion_Class:
                 if variation != 0:
                     images = images[:, ::-1]
                     annotations = annotations[:, ::-1]
+            elif key is 'hard_dilate': # 'hard_dilate': [0, 1]
+                if variation != 0:
+                    output_annotation = np.zeros(annotations.shape, dtype=annotations.dtype)
 
+                    for val in range(1, int(annotations.max()) + 1):
+                        temp = copy.deepcopy(annotations).astype('int')
+                        temp[temp != val] = 0
+                        temp[temp > 0] = 1
+                        if len(annotations.shape) > 2:
+                            for image in range(annotations.shape[0]):
+                                im = temp[image, :, :]
+                                if np.max(im) != 0:
+                                    im = morphology.binary_dilation(im)
+                                    im = im.astype('int')
+                                    im[im > 0.1] = val
+                                    im[im < val] = 0
+                                    output_annotation[image, :, :][im == val] = val
+                        else:
+                            im = temp
+                            if np.max(im) != 0:
+                                im = morphology.binary_dilation(im)
+                                im = im.astype('int')
+                                im[im > 0.1] = val
+                                im[im < val] = 0
+                                output_annotation[im == val] = val
+
+                    annotations = output_annotation
+            elif key is 'random_noise': # 'random_noise': np.round(np.arange(start=-0.1, stop=0.30, step=0.1),2)
+                if variation != 0:
+                    images += variation * np.random.normal(loc=0.0, scale=1.0, size=images.shape)
 
         images += min_val
         output_image = images
