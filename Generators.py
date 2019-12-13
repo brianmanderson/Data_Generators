@@ -1672,7 +1672,8 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
 
 
 class Image_Clipping_and_Padding(Sequence):
-    def __init__(self, layers_dict, generator, return_mask=False, liver_box=False, mask_output=False, bounding_box_expansion=(5,10,10)):
+    def __init__(self, layers_dict, generator, return_mask=False, liver_box=False, mask_output=False,
+                 bounding_box_expansion=(5,10,10)):
         '''
         :param layers_dict: Dictionary of layers for model, Layer_0, Layer_1, Base, etc.
         :param generator: a data generator
@@ -1730,7 +1731,10 @@ class Image_Clipping_and_Padding(Sequence):
         out_images[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = x[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
         out_annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = y[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
         if self.return_mask:
-            return [out_images,np.sum(out_annotations[...,1:],axis=-1)[...,None]], out_annotations
+            mask = np.sum(out_annotations[...,1:],axis=-1)[...,None]
+            mask = np.repeat(mask,self.generator.num_classes,axis=-1)
+            mask[...,0] = 1 - mask[...,0]
+            return [out_images,mask], out_annotations
         if self.mask_output:
             out_images[out_annotations[...,0] == 1] = -3.55
         return out_images, out_annotations
