@@ -183,7 +183,7 @@ class Perturbation_Class(Image_Processor):
         return output_image, output_annotation
 
 
-class Rotate_Images_Processor(Image_Processor):
+class Rotate_Images_2D_Processor(Image_Processor):
     def __init__(self, image_size=512, by_patient=False, variation=None):
         '''
         :param image_size: size of image row/col
@@ -199,7 +199,8 @@ class Rotate_Images_Processor(Image_Processor):
         if self.variation is not None:
             if self.by_patient:
                 variation = self.variation[np.random.randint(len(self.variation))]
-                images, annotations = self.run_perturbation(images,annotations,variation)
+                for i in range(images.shape[0]):
+                    images[i], annotations[i] = self.run_perturbation(images[i],annotations[i],variation)
             else:
                 for i in range(images.shape[0]):
                     variation = self.variation[np.random.randint(len(self.variation))]
@@ -207,8 +208,8 @@ class Rotate_Images_Processor(Image_Processor):
         return images, annotations
 
 
-    def run_perturbation(self, images, annotations, variation):
-        image_row, image_col = images.shape[-2:]
+    def run_perturbation(self, image, annotation, variation):
+        image_row, image_col = image.shape[-2:]
         if variation not in self.M_image.keys():
             M_image = cv2.getRotationMatrix2D((int(image_row) / 2, int(image_col) / 2), variation, 1)
             self.M_image[variation] = M_image
@@ -216,46 +217,25 @@ class Rotate_Images_Processor(Image_Processor):
             M_image = self.M_image[variation]
         if variation != 0:
             # images = cv2.warpAffine(images,M_image, (int(shape_size_image), int(shape_size_image)))
-            output_image = np.zeros(images.shape, dtype=images.dtype)
-            if len(images.shape) > 2:
-                for image in range(images.shape[0]):
-                    im = images[image, :, :]
-                    if np.max(im) != 0:
-                        im = cv2.warpAffine(im, M_image, (int(image_row), int(image_col)),
-                                            flags=cv2.INTER_LINEAR)
-                    output_image[image, :, :] = im
-            else:
-                output_image = cv2.warpAffine(images, M_image, (int(image_row), int(image_col)),
-                                              flags=cv2.INTER_LINEAR)
-            images = output_image
-
-            output_annotation = np.zeros(annotations.shape, dtype=annotations.dtype)
-            for val in range(1, int(annotations.max()) + 1):
-                temp = copy.deepcopy(annotations).astype('int')
+            image = cv2.warpAffine(image, M_image, (int(image_row), int(image_col)),flags=cv2.INTER_LINEAR)
+            output_annotation = np.zeros(annotation.shape, dtype=annotation.dtype)
+            for val in range(1, int(annotation.max()) + 1):
+                temp = copy.deepcopy(annotation).astype('int')
                 temp[temp != val] = 0
                 temp[temp > 0] = 1
-                if len(annotations.shape) > 2:
-                    for image in range(annotations.shape[0]):
-                        im = temp[image, :, :]
-                        if np.max(im) != 0:
-                            im = cv2.warpAffine(im, M_image,
-                                                (int(image_row), int(image_col)),
-                                                flags=cv2.INTER_NEAREST)
-                            im[im > 0.1] = val
-                            im[im < val] = 0
-                            output_annotation[image, :, :][im == val] = val
-                else:
-                    im = temp
-                    if np.max(im) != 0:
-                        im = cv2.warpAffine(im, M_image,
-                                            (int(image_row), int(image_col)),
-                                            flags=cv2.INTER_NEAREST)
-                        im[im > 0.1] = val
-                        im[im < val] = 0
-                        output_annotation[im == val] = val
+                im = temp
+                if np.max(im) != 0:
+                    im = cv2.warpAffine(im, M_image,
+                                        (int(image_row), int(image_col)),
+                                        flags=cv2.INTER_NEAREST)
+                    im[im > 0.1] = val
+                    im[im < val] = 0
+                    output_annotation[im == val] = val
                 # output_annotation[annotations == val] = val
-            annotations = output_annotation
-        return images, annotations
+            annotation = output_annotation
+        return image, annotation
+
+
 class Shift_Images_Processor(Image_Processor):
     def __init__(self,by_patient=False, variation=0, positive_negative=False):
         '''
