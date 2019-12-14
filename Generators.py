@@ -134,52 +134,6 @@ class Perturbation_Class(Image_Processor):
                                 output_annotation[im == val] = val
                         # output_annotation[annotations == val] = val
                     annotations = output_annotation
-            elif key == '2D_Random':    # '2D_Random': np.round(np.arange(start=0, stop=2.6, step=0.5),2)
-                if variation != 0:
-
-                    # generate random parameter --- will be the same for all slices of the same patients
-                    # for 3D use dz with same pattern than dx/dy
-                    random_state = np.random.RandomState(None)
-
-                    if len(images.shape) > 2:
-                        temp_img = images
-                    else:
-                        temp_img = images[:,:,None]
-
-                    shape = temp_img.shape
-                    sigma = 512*0.1
-                    alpha = 512*variation
-                    dx = filters.gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma) * alpha
-                    dy = filters.gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma) * alpha
-                    # dz = np.zeros_like(dx) #2d not used
-                    # dz = filters.gaussian_filter((random_state.rand(*shape) * 2 - 1), 512*0.10, mode="constant", cval=0) * 512*variation
-
-                    x, y, z = np.meshgrid(np.arange(shape[0]), np.arange(shape[1]), np.arange(shape[2]))
-                    indices = np.reshape(y + dy, (-1, 1)), np.reshape(x + dx, (-1, 1)), np.reshape(z, (-1, 1))
-                    # indices_3d = np.reshape(y + dy, (-1, 1)), np.reshape(x + dx, (-1, 1)), np.reshape(z + dz, (-1, 1))
-
-                    if len(images.shape) > 2:
-                        images = interpolation.map_coordinates(temp_img, indices, order=1, mode='constant', cval=float(np.min(images))).reshape(shape)
-                    else:
-                        images = interpolation.map_coordinates(temp_img, indices, order=1, mode='constant', cval=float(np.min(images))).reshape(shape)[:,:,0]
-
-                    output_annotation = np.zeros(annotations.shape,dtype=annotations.dtype)
-
-                    for val in range(1, int(annotations.max()) + 1):
-                        temp = copy.deepcopy(annotations).astype('int')
-                        temp[temp != val] = 0
-                        temp[temp > 0] = 1
-
-                        if len(annotations.shape) > 2:
-                            im = interpolation.map_coordinates(temp, indices, order=0, mode='constant', cval=0).reshape(shape)
-                        else:
-                            im = interpolation.map_coordinates(temp[:,:,None], indices, order=0, mode='constant', cval=0).reshape(shape)[:,:,0]
-
-                        im[im > 0.1] = val
-                        im[im < val] = 0
-                        output_annotation[im == val] = val
-
-                    annotations = output_annotation
             elif key == 'Scale':    # 'Scale': np.round(np.arange(start=-0.15, stop=0.20, step=0.05),2)
                 if variation != 0:
                     output_image = np.zeros(images.shape, dtype=images.dtype)
@@ -229,6 +183,79 @@ class Perturbation_Class(Image_Processor):
         return output_image, output_annotation
 
 
+class Rotate_Images_Processor(Image_Processor):
+    def __init__(self, image_size=512, by_patient=False, variation=None):
+        '''
+        :param image_size: size of image row/col
+        :param by_patient: perform on all images in stack, or vary for each one
+        :param variation: range of values np.round(np.arange(start=0, stop=2.6, step=0.5),2)
+        '''
+        self.image_size = image_size
+        self.variation = variation
+        self.by_patient = by_patient
+        self.M_image = {}
+
+    def post_load_process(self, images, annotations):
+        if self.variation is not None:
+            if self.by_patient:
+                variation = self.variation[np.random.randint(len(self.variation))]
+                images, annotations = self.run_perturbation(images,annotations,variation)
+            else:
+                for i in range(images.shape[0]):
+                    variation = self.variation[np.random.randint(len(self.variation))]
+                    images[i], annotations[i] = self.run_perturbation(images[i],annotations[i],variation)
+        return images, annotations
+
+
+    def run_perturbation(self, images, annotations, variation):
+        image_row, image_col = images.shape[-2:]
+        if variation not in self.M_image.keys():
+            M_image = cv2.getRotationMatrix2D((int(image_row) / 2, int(image_col) / 2), variation, 1)
+            self.M_image[variation] = M_image
+        else:
+            M_image = self.M_image[variation]
+        if variation != 0:
+            # images = cv2.warpAffine(images,M_image, (int(shape_size_image), int(shape_size_image)))
+            output_image = np.zeros(images.shape, dtype=images.dtype)
+            if len(images.shape) > 2:
+                for image in range(images.shape[0]):
+                    im = images[image, :, :]
+                    if np.max(im) != 0:
+                        im = cv2.warpAffine(im, M_image, (int(image_row), int(image_col)),
+                                            flags=cv2.INTER_LINEAR)
+                    output_image[image, :, :] = im
+            else:
+                output_image = cv2.warpAffine(images, M_image, (int(image_row), int(image_col)),
+                                              flags=cv2.INTER_LINEAR)
+            images = output_image
+
+            output_annotation = np.zeros(annotations.shape, dtype=annotations.dtype)
+            for val in range(1, int(annotations.max()) + 1):
+                temp = copy.deepcopy(annotations).astype('int')
+                temp[temp != val] = 0
+                temp[temp > 0] = 1
+                if len(annotations.shape) > 2:
+                    for image in range(annotations.shape[0]):
+                        im = temp[image, :, :]
+                        if np.max(im) != 0:
+                            im = cv2.warpAffine(im, M_image,
+                                                (int(image_row), int(image_col)),
+                                                flags=cv2.INTER_NEAREST)
+                            im[im > 0.1] = val
+                            im[im < val] = 0
+                            output_annotation[image, :, :][im == val] = val
+                else:
+                    im = temp
+                    if np.max(im) != 0:
+                        im = cv2.warpAffine(im, M_image,
+                                            (int(image_row), int(image_col)),
+                                            flags=cv2.INTER_NEAREST)
+                        im[im > 0.1] = val
+                        im[im < val] = 0
+                        output_annotation[im == val] = val
+                # output_annotation[annotations == val] = val
+            annotations = output_annotation
+        return images, annotations
 class Shift_Images_Processor(Image_Processor):
     def __init__(self,by_patient=False, variation=0, positive_negative=False):
         '''
