@@ -134,18 +134,6 @@ class Perturbation_Class(Image_Processor):
                                 output_annotation[im == val] = val
                         # output_annotation[annotations == val] = val
                     annotations = output_annotation
-            elif key == 'Shift':    # 'Shift': np.arange(start=-5, stop=6, step=1)
-                variation_row = variation
-                variation_col = self.pertubartions[key][np.random.randint(-len(self.pertubartions[key]), len(self.pertubartions[key]))]
-                if len(images.shape) == 2:
-                    output_image = interpolation.shift(images,[variation_row, variation_col])
-                    annotations = interpolation.shift(annotations.astype('int'),
-                                                                    [variation_row, variation_col])
-                elif len(images.shape) == 3:
-                    output_image = interpolation.shift(images, [0, variation_row, variation_col])
-                    annotations = interpolation.shift(annotations.astype('int'),
-                                                                    [0, variation_row, variation_col])
-                images = output_image
             elif key == '2D_Random':    # '2D_Random': np.round(np.arange(start=0, stop=2.6, step=0.5),2)
                 if variation != 0:
 
@@ -242,7 +230,7 @@ class Perturbation_Class(Image_Processor):
 
 
 class Shift_Images_Processor(Image_Processor):
-    def __init__(self,by_patient, variation=0, positive_negative=False):
+    def __init__(self,by_patient=False, variation=0, positive_negative=False):
         '''
         :param by_patient: Perform the same scaling across all images in stack, or one by one
         :param variation: Range of shift variations in rows and columns, up to and including! So 5 is 0,1,2,3,4,5
@@ -259,8 +247,6 @@ class Shift_Images_Processor(Image_Processor):
 
     def post_load_process(self, images, annotations):
         if self.variation_range is not None:
-            min_val = np.min(images)
-            images -= min_val
             if not self.by_patient:
                 for i in range(len(images)):
                     variation_row = self.variation_range[np.random.randint(len(self.variation_range))]
@@ -271,7 +257,6 @@ class Shift_Images_Processor(Image_Processor):
                 variation_row = self.variation_range[np.random.randint(len(self.variation_range))]
                 variation_col = self.variation_range[np.random.randint(len(self.variation_range))]
                 images, annotations = self.make_perturbation(images, annotations, variation_row, variation_col)
-            images += min_val
         return images, annotations
 
     def make_perturbation(self, images, annotations, variation_row, variation_col):
@@ -283,6 +268,79 @@ class Shift_Images_Processor(Image_Processor):
             images = interpolation.shift(images, [0, variation_row, variation_col])
             annotations = interpolation.shift(annotations.astype('int'),
                                               [0, variation_row, variation_col])
+        return images, annotations
+
+
+class Random_2D_Processor(Image_Processor):
+    def __init__(self, image_size=512, by_patient=False, variation=None):
+        '''
+        :param image_shape: shape of images row/col
+        :param by_patient: perform randomly on each image in stack, or on the entire collective
+        :param variation: range of values np.round(np.arange(start=0, stop=2.6, step=0.5),2)
+        '''
+        self.image_size = image_size
+        self.by_patient = by_patient
+        self.variation = variation
+
+    def run_perturbation(self, images, annotations, variation):
+        # generate random parameter --- will be the same for all slices of the same patients
+        # for 3D use dz with same pattern than dx/dy
+        random_state = np.random.RandomState(None)
+
+        if len(images.shape) > 2:
+            temp_img = images
+        else:
+            temp_img = images[:, :, None]
+
+        shape = temp_img.shape
+        sigma = self.image_size * 0.1
+        alpha = self.image_size * variation
+        dx = filters.gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma) * alpha
+        dy = filters.gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma) * alpha
+        # dz = np.zeros_like(dx) #2d not used
+        # dz = filters.gaussian_filter((random_state.rand(*shape) * 2 - 1), 512*0.10, mode="constant", cval=0) * 512*variation
+
+        x, y, z = np.meshgrid(np.arange(shape[0]), np.arange(shape[1]), np.arange(shape[2]))
+        indices = np.reshape(y + dy, (-1, 1)), np.reshape(x + dx, (-1, 1)), np.reshape(z, (-1, 1))
+        # indices_3d = np.reshape(y + dy, (-1, 1)), np.reshape(x + dx, (-1, 1)), np.reshape(z + dz, (-1, 1))
+
+        if len(images.shape) > 2:
+            images = interpolation.map_coordinates(temp_img, indices, order=1, mode='constant',
+                                                   cval=float(np.min(images))).reshape(shape)
+        else:
+            images = interpolation.map_coordinates(temp_img, indices, order=1, mode='constant',
+                                                   cval=float(np.min(images))).reshape(shape)[:, :, 0]
+
+        output_annotation = np.zeros(annotations.shape, dtype=annotations.dtype)
+
+        for val in range(1, int(annotations.max()) + 1):
+            temp = copy.deepcopy(annotations).astype('int')
+            temp[temp != val] = 0
+            temp[temp > 0] = 1
+
+            if len(annotations.shape) > 2:
+                im = interpolation.map_coordinates(temp, indices, order=0, mode='constant', cval=0).reshape(shape)
+            else:
+                im = interpolation.map_coordinates(temp[:, :, None], indices, order=0, mode='constant',
+                                                   cval=0).reshape(
+                    shape)[:, :, 0]
+
+            im[im > 0.1] = val
+            im[im < val] = 0
+            output_annotation[im == val] = val
+        annotations = output_annotation
+        return images, annotations
+
+    def post_load_process(self, images, annotations):
+        if self.variation is not None:
+            if self.by_patient:
+                variation = self.variation[np.random.randint(len(self.variation))]
+                for i in range(images.shape[0]):
+                    images[i], annotations[i] = self.run_perturbation(images[i],annotations[i],variation)
+            else:
+                for i in range(images.shape[0]):
+                    variation = self.variation[np.random.randint(len(self.variation))]
+                    images[i], annotations[i] = self.run_perturbation(images[i],annotations[i],variation)
         return images, annotations
 
 
@@ -593,9 +651,11 @@ class image_loader(object):
                 images_temp, annotations_temp = self.image_dictionary[image_names[i]]
             images[index] = np.squeeze(images_temp)
             annotations[index] = np.squeeze(annotations_temp)
-
+        min_val = np.min(images)
+        images -= min_val
         for image_processors in self.image_processors:
             images, annotations = image_processors.post_load_process(images, annotations)
+        images += min_val
 
         if self.three_channel and images.shape[-1] != 3:
             images_stacked = np.stack([images,images,images],axis=-1)
