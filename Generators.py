@@ -1,4 +1,6 @@
-from keras.utils import Sequence, np_utils
+#from keras.utils import Sequence, np_utils
+from keras.utils import np_utils
+from tensorflow.python.keras.utils.data_utils import Sequence
 import keras.backend as K
 from keras.models import load_model
 import matplotlib.pyplot as plt
@@ -821,6 +823,227 @@ class Data_Set_Reader(image_loader):
             perm = np.arange(len(self.file_batches))
             np.random.shuffle(perm)
             self.file_batches = list(np.asarray(self.file_batches)[perm])
+
+
+class Pertubartion_Class:
+    def __init__(self,pertubartions,image_shape):
+        self.pertubartions = pertubartions
+        self.output_annotation_template = np.zeros(image_shape)
+        self.output_images_template = np.zeros(image_shape)
+        self.M_image = {}
+        self.image_shape = image_shape
+
+
+    def scale_image(self, im, variation=0, interpolator='linear'):
+
+        if interpolator is 'linear':
+            temp_scale = cv2.resize(im, None, fx=1 + variation, fy=1 + variation,
+                                    interpolation=cv2.INTER_LINEAR)
+        elif interpolator is 'nearest':
+            temp_scale = cv2.resize(im, None, fx=1 + variation, fy=1 + variation,
+                                    interpolation=cv2.INTER_NEAREST)
+        else:
+            return im
+
+        center = (temp_scale.shape[0] // 2, temp_scale.shape[1] // 2)
+        if variation > 0:
+            im = temp_scale[int(center[0] - 512 / 2):int(center[0] + 512 / 2),
+                 int(center[1] - 512 / 2):int(center[1] + 512 / 2)]
+        elif variation < 0:
+            padx = (512 - temp_scale.shape[0]) / 2
+            pady = (512 - temp_scale.shape[1]) / 2
+            im = np.pad(temp_scale, [
+                (math.floor(padx), math.ceil(padx)),
+                (math.floor(pady), math.ceil(pady))], mode='constant',
+                        constant_values=np.min(temp_scale))
+        return im
+
+
+    def make_pertubartions(self,images,annotations):
+        min_val = np.min(images)
+        images -= min_val # This way any rotation gets a 0, irrespective of previous normalization
+        for key in self.pertubartions.keys():
+
+            variation = self.pertubartions[key][np.random.randint(0, len(self.pertubartions[key]))]
+
+            if key == 'Rotation':   # 'Rotation': np.arange(start=-5, stop=6, step=1)
+                shape_size_image = shape_size_annotation = self.image_shape[1]
+                if variation not in self.M_image.keys():
+                    M_image = cv2.getRotationMatrix2D((int(shape_size_image) / 2, int(shape_size_image) / 2), variation,1)
+                    self.M_image[variation] = M_image
+                else:
+                    M_image = self.M_image[variation]
+                if variation != 0:
+                    # images = cv2.warpAffine(images,M_image, (int(shape_size_image), int(shape_size_image)))
+                    output_image = np.zeros(images.shape,dtype=images.dtype)
+                    if len(images.shape) > 2:
+                        for image in range(images.shape[0]):
+                            im = images[image, :, :]
+                            if np.max(im) != 0:
+                                im = cv2.warpAffine(im, M_image, (int(shape_size_image), int(shape_size_image)),flags=cv2.INTER_LINEAR)
+                            output_image[image, :, :] = im
+                    else:
+                        output_image = cv2.warpAffine(images, M_image, (int(shape_size_image), int(shape_size_image)),flags=cv2.INTER_LINEAR)
+                    images = output_image
+
+                    output_annotation = np.zeros(annotations.shape,dtype=annotations.dtype)
+                    for val in range(1, int(annotations.max()) + 1):
+                        temp = copy.deepcopy(annotations).astype('int')
+                        temp[temp != val] = 0
+                        temp[temp > 0] = 1
+                        if len(annotations.shape) > 2:
+                            for image in range(annotations.shape[0]):
+                                im = temp[image, :, :]
+                                if np.max(im) != 0:
+                                    im = cv2.warpAffine(im, M_image,
+                                                        (int(shape_size_annotation), int(shape_size_annotation)),flags=cv2.INTER_NEAREST)
+                                    im[im > 0.1] = val
+                                    im[im < val] = 0
+                                    output_annotation[image, :, :][im == val] = val
+                        else:
+                            im = temp
+                            if np.max(im) != 0:
+                                im = cv2.warpAffine(im, M_image,
+                                                    (int(shape_size_annotation), int(shape_size_annotation)),flags=cv2.INTER_NEAREST)
+                                im[im > 0.1] = val
+                                im[im < val] = 0
+                                output_annotation[im == val] = val
+                        # output_annotation[annotations == val] = val
+                    annotations = output_annotation
+            elif key == 'Shift':    # 'Shift': np.arange(start=-5, stop=6, step=1)
+                variation_row = variation
+                variation_col = self.pertubartions[key][np.random.randint(-len(self.pertubartions[key]), len(self.pertubartions[key]))]
+                if len(images.shape) == 2:
+                    output_image = interpolation.shift(images,[variation_row, variation_col])
+                    annotations = interpolation.shift(annotations.astype('int'),
+                                                                    [variation_row, variation_col])
+                elif len(images.shape) == 3:
+                    output_image = interpolation.shift(images, [0, variation_row, variation_col])
+                    annotations = interpolation.shift(annotations.astype('int'),
+                                                                    [0, variation_row, variation_col])
+                images = output_image
+            elif key == '2D_Random':    # '2D_Random': np.round(np.arange(start=0, stop=2.6, step=0.5),2)
+                if variation != 0:
+
+                    # generate random parameter --- will be the same for all slices of the same patients
+                    # for 3D use dz with same pattern than dx/dy - see commented lines
+                    random_state = np.random.RandomState(None)
+
+                    if len(images.shape) > 2:
+                        temp_img = images
+                    else:
+                        temp_img = images[:,:,None]
+
+                    shape = temp_img.shape
+                    sigma = 512*0.1
+                    alpha = 512*variation
+                    dx = filters.gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma) * alpha
+                    dy = filters.gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma) * alpha
+                    # dz = np.zeros_like(dx) #2d not used
+                    # dz = filters.gaussian_filter((random_state.rand(*shape) * 2 - 1), 512*0.10, mode="constant", cval=0) * 512*variation
+
+                    x, y, z = np.meshgrid(np.arange(shape[0]), np.arange(shape[1]), np.arange(shape[2]))
+                    indices = np.reshape(y + dy, (-1, 1)), np.reshape(x + dx, (-1, 1)), np.reshape(z, (-1, 1))
+                    # indices_3d = np.reshape(y + dy, (-1, 1)), np.reshape(x + dx, (-1, 1)), np.reshape(z + dz, (-1, 1))
+
+                    if len(images.shape) > 2:
+                        images = interpolation.map_coordinates(temp_img, indices, order=1, mode='constant', cval=float(np.min(images))).reshape(shape)
+                    else:
+                        images = interpolation.map_coordinates(temp_img, indices, order=1, mode='constant', cval=float(np.min(images))).reshape(shape)[:,:,0]
+
+                    output_annotation = np.zeros(annotations.shape,dtype=annotations.dtype)
+
+                    for val in range(1, int(annotations.max()) + 1):
+                        temp = copy.deepcopy(annotations).astype('int')
+                        temp[temp != val] = 0
+                        temp[temp > 0] = 1
+
+                        if len(annotations.shape) > 2:
+                            im = interpolation.map_coordinates(temp, indices, order=0, mode='constant', cval=0).reshape(shape)
+                        else:
+                            im = interpolation.map_coordinates(temp[:,:,None], indices, order=0, mode='constant', cval=0).reshape(shape)[:,:,0]
+
+                        im[im > 0.1] = val
+                        im[im < val] = 0
+                        output_annotation[im == val] = val
+
+                    annotations = output_annotation
+            elif key == 'Scale':    # 'Scale': np.round(np.arange(start=-0.15, stop=0.20, step=0.05),2)
+                if variation != 0:
+                    output_image = np.zeros(images.shape, dtype=images.dtype)
+                    if len(images.shape) > 2:
+                        for image in range(images.shape[0]):
+                            im = images[image, :, :]
+                            if np.max(im) != 0:
+                                im = self.scale_image(im, variation, 'linear')
+                            output_image[image, :, :] = im
+                    else:
+                        output_image = self.scale_image(images, variation, 'linear')
+
+                    images = output_image
+                    output_annotation = np.zeros(annotations.shape, dtype=annotations.dtype)
+
+                    for val in range(1, int(annotations.max()) + 1):
+                        temp = copy.deepcopy(annotations).astype('int')
+                        temp[temp != val] = 0
+                        temp[temp > 0] = 1
+                        if len(annotations.shape) > 2:
+                            for image in range(annotations.shape[0]):
+                                im = temp[image, :, :]
+                                if np.max(im) != 0:
+                                    im = self.scale_image(im, variation, 'nearest')
+
+                                    im[im > 0.1] = val
+                                    im[im < val] = 0
+                                    output_annotation[image, :, :][im == val] = val
+                        else:
+                            im = temp
+                            if np.max(im) != 0:
+                                im = self.scale_image(im, variation, 'nearest')
+
+                                im[im > 0.1] = val
+                                im[im < val] = 0
+                                output_annotation[im == val] = val
+                    annotations = output_annotation
+            elif key is 'h_flip':   # 'h_flip': [0, 1]
+                if variation != 0:
+                    images = images[:, ::-1]
+                    annotations = annotations[:, ::-1]
+            elif key is 'hard_dilate': # 'hard_dilate': [0, 1]
+                if variation != 0:
+                    output_annotation = np.zeros(annotations.shape, dtype=annotations.dtype)
+
+                    for val in range(1, int(annotations.max()) + 1):
+                        temp = copy.deepcopy(annotations).astype('int')
+                        temp[temp != val] = 0
+                        temp[temp > 0] = 1
+                        if len(annotations.shape) > 2:
+                            for image in range(annotations.shape[0]):
+                                im = temp[image, :, :]
+                                if np.max(im) != 0:
+                                    im = morphology.binary_dilation(im)
+                                    im = im.astype('int')
+                                    im[im > 0.1] = val
+                                    im[im < val] = 0
+                                    output_annotation[image, :, :][im == val] = val
+                        else:
+                            im = temp
+                            if np.max(im) != 0:
+                                im = morphology.binary_dilation(im)
+                                im = im.astype('int')
+                                im[im > 0.1] = val
+                                im[im < val] = 0
+                                output_annotation[im == val] = val
+
+                    annotations = output_annotation
+            elif key is 'random_noise': # 'random_noise': np.round(np.arange(start=-0.1, stop=0.30, step=0.1),2)
+                if variation != 0:
+                    images += variation * np.random.normal(loc=0.0, scale=1.0, size=images.shape)
+
+        images += min_val
+        output_image = images
+        output_annotation = annotations
+        return output_image, output_annotation
 
 
 class Train_Data_Generator2D(Sequence):
