@@ -50,11 +50,12 @@ class Add_Noise_To_Images(Image_Processor):
     def __init__(self, noise=0.0):
         self.noise = noise
 
-    def post_load__process(self, images, annotations):
+    def post_load_process(self, images, annotations):
         if self.noise != 0.0:
             noisy_image = self.noise * np.random.normal(loc=0.0, scale=1.0, size=images.shape)
             images += noisy_image
         return images, annotations
+
 
 class Perturbation_Class(Image_Processor):
     def __init__(self,pertubartions,image_shape, by_patient):
@@ -69,7 +70,6 @@ class Perturbation_Class(Image_Processor):
         self.output_images_template = np.zeros(image_shape)
         self.M_image = {}
         self.image_shape = image_shape
-
 
     def scale_image(self, im, variation=0, interpolator='linear'):
         if interpolator is 'linear':
@@ -93,7 +93,6 @@ class Perturbation_Class(Image_Processor):
                 (math.floor(pady), math.ceil(pady))], mode='constant',
                         constant_values=np.min(temp_scale))
         return im
-
 
     def post_load_process(self, images, annotations):
         if not self.by_patient:
@@ -224,7 +223,6 @@ class Rotate_Images_2D_Processor(Image_Processor):
                     variation = self.variation[np.random.randint(len(self.variation))]
                     images[i], annotations[i] = self.run_perturbation(images[i],annotations[i],variation)
         return images, annotations
-
 
     def run_perturbation(self, image, annotation, variation):
         image_row, image_col = image.shape[-2:]
@@ -367,3 +365,7 @@ class Random_2D_Processor(Image_Processor):
                     variation = self.variation[np.random.randint(len(self.variation))]
                     images[i], annotations[i] = self.run_perturbation(images[i],annotations[i],variation)
         return images, annotations
+
+
+if __name__ == '__main__':
+    pass
