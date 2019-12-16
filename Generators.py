@@ -3,8 +3,7 @@ import keras.backend as K
 from keras.models import load_model
 from skimage import morphology
 from skimage.measure import block_reduce
-import cv2, os, copy, glob, pickle
-import numpy as np
+import os, glob, pickle
 from Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
 import SimpleITK as sitk
 from Image_Processors import *
@@ -86,70 +85,6 @@ def remove_non_liver(annotations, threshold=0.5, volume_threshold=9999999):
     annotations = labels
     return annotations
 
-
-class Image_Processor(object):
-
-    def pre_process(self, image, annotation):
-        return image, annotation
-
-    def nusance_process(self, image, annotation):
-        return image, annotation
-
-
-class Ensure_Image_Proportions(Image_Processor):
-    def __init__(self, image_size=512):
-        self.image_size = image_size
-
-    def convert_image_size(self, images, annotations, image_size):
-        dif_1 = (image_size - images.shape[1])
-        dif_2 = (image_size - images.shape[2])
-        if dif_1 > 0 and dif_2 > 0:
-            out_image_size = list(images.shape)
-            out_image_size[1] = image_size
-            out_image_size[2] = image_size
-            out_annotations_size = list(images.shape)
-            out_annotations_size[1] = image_size
-            out_annotations_size[2] = image_size
-            out_image = np.ones(out_image_size,dtype=images.dtype) * np.min(images)
-            out_annotations = np.zeros(out_annotations_size,dtype=annotations.dtype)
-            out_image[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2],...] = images
-            out_annotations[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2],...] = annotations
-            return out_image, out_annotations
-        if dif_1 != 0:
-            if dif_1 > 0:
-                images = np.concatenate((images, images[:, :dif_1//2, ...]),axis=1)
-                images = np.concatenate((images[:, -dif_1//2:, ...], images),axis=1)
-                annotations = np.concatenate((annotations, annotations[:, :dif_1//2, ...]),axis=1)
-                annotations = np.concatenate((annotations[:, -dif_1//2:, ...], annotations),axis=1)
-            elif dif_1 < 0:
-                images = images[:, abs(dif_1)//2:-abs(dif_1//2), ...]
-                annotations = annotations[:, abs(dif_1)//2:-abs(dif_1//2), ...]
-        if dif_2 != 0:
-            if dif_2 > 0:
-                images = np.concatenate((images, images[:, :, :dif_2//2, ...]),axis=2)
-                images = np.concatenate((images[:, :, -dif_2//2:, ...], images),axis=2)
-                annotations = np.concatenate((annotations, annotations[:, :, :dif_2//2, ...]),axis=2)
-                annotations = np.concatenate((annotations[:, :, -dif_2//2:, ...], annotations),axis=2)
-            elif dif_2 < 0:
-                images = images[:, :, abs(dif_2)//2:-abs(dif_2//2), ...]
-                annotations = annotations[:, :, abs(dif_2)//2:-abs(dif_2//2), ...]
-        return images, annotations
-
-    def pre_process(self, image, annotation):
-        if image.shape[1] != self.image_size or image.shape[2] != self.image_size:
-            if image.shape[1] >= self.image_size * 2 and image.shape[2] >= self.image_size * 2:
-                if len(annotation.shape) == 3:
-                    block = (2, 2)
-                else:
-                    block = (2, 2, 1)
-                image = block_reduce(image[0, ...], block, np.average).astype('float32')[None, ...]
-                annotation = block_reduce(annotation[0, ...].astype('int'), block, np.max).astype('int')[
-                    None, ...]
-            if image.shape[0] != 1:
-                image = image[None, ...]
-                annotation = annotation[None, ...]
-            image, annotation = self.convert_image_size(image, annotation,self.image_size)
-        return image, annotation
 
 class image_loader(object):
     def __init__(self,image_size=512,perturbations=None, three_channel=False, by_patient=False,

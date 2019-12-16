@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.ndimage import interpolation, filters
 import cv2, math, copy
+from skimage.measure import block_reduce
 from Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
 
 
@@ -23,6 +24,61 @@ class Image_Processor(object):
         '''
         return images, annotations
 
+
+class Ensure_Image_Proportions(Image_Processor):
+    def __init__(self, image_size=512):
+        self.image_size = image_size
+
+    def convert_image_size(self, images, annotations, image_size):
+        dif_1 = (image_size - images.shape[1])
+        dif_2 = (image_size - images.shape[2])
+        if dif_1 > 0 and dif_2 > 0:
+            out_image_size = list(images.shape)
+            out_image_size[1] = image_size
+            out_image_size[2] = image_size
+            out_annotations_size = list(images.shape)
+            out_annotations_size[1] = image_size
+            out_annotations_size[2] = image_size
+            out_image = np.ones(out_image_size,dtype=images.dtype) * np.min(images)
+            out_annotations = np.zeros(out_annotations_size,dtype=annotations.dtype)
+            out_image[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2],...] = images
+            out_annotations[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2],...] = annotations
+            return out_image, out_annotations
+        if dif_1 != 0:
+            if dif_1 > 0:
+                images = np.concatenate((images, images[:, :dif_1//2, ...]),axis=1)
+                images = np.concatenate((images[:, -dif_1//2:, ...], images),axis=1)
+                annotations = np.concatenate((annotations, annotations[:, :dif_1//2, ...]),axis=1)
+                annotations = np.concatenate((annotations[:, -dif_1//2:, ...], annotations),axis=1)
+            elif dif_1 < 0:
+                images = images[:, abs(dif_1)//2:-abs(dif_1//2), ...]
+                annotations = annotations[:, abs(dif_1)//2:-abs(dif_1//2), ...]
+        if dif_2 != 0:
+            if dif_2 > 0:
+                images = np.concatenate((images, images[:, :, :dif_2//2, ...]),axis=2)
+                images = np.concatenate((images[:, :, -dif_2//2:, ...], images),axis=2)
+                annotations = np.concatenate((annotations, annotations[:, :, :dif_2//2, ...]),axis=2)
+                annotations = np.concatenate((annotations[:, :, -dif_2//2:, ...], annotations),axis=2)
+            elif dif_2 < 0:
+                images = images[:, :, abs(dif_2)//2:-abs(dif_2//2), ...]
+                annotations = annotations[:, :, abs(dif_2)//2:-abs(dif_2//2), ...]
+        return images, annotations
+
+    def preload_single_image_process(self, image, annotation):
+        if image.shape[1] != self.image_size or image.shape[2] != self.image_size:
+            if image.shape[1] >= self.image_size * 2 and image.shape[2] >= self.image_size * 2:
+                if len(annotation.shape) == 3:
+                    block = (2, 2)
+                else:
+                    block = (2, 2, 1)
+                image = block_reduce(image[0, ...], block, np.average).astype('float32')[None, ...]
+                annotation = block_reduce(annotation[0, ...].astype('int'), block, np.max).astype('int')[
+                    None, ...]
+            if image.shape[0] != 1:
+                image = image[None, ...]
+                annotation = annotation[None, ...]
+            image, annotation = self.convert_image_size(image, annotation,self.image_size)
+        return image, annotation
 
 class Normalize_Images(Image_Processor):
     def __init__(self, mean_val=0, std_val=1):
@@ -161,6 +217,121 @@ class Perturbation_Class(Image_Processor):
         output_annotation = annotations
         return output_image, output_annotation
 
+
+class Random_Scale_Processor(Image_Processor):
+    def __init__(self, image_size=512, by_patient=False, variation=None):
+        '''
+        :param image_shape: shape of images row/col
+        :param by_patient: perform randomly on each image in stack, or on the entire collective
+        :param variation: range of values np.round(np.arange(start=0, stop=2.6, step=0.5),2)
+        '''
+        self.image_size = image_size
+        self.by_patient = by_patient
+        self.variation = variation
+
+    def run_perturbation(self, images, annotations, variation):
+        # generate random parameter --- will be the same for all slices of the same patients
+        # for 3D use dz with same pattern than dx/dy
+        random_state = np.random.RandomState(None)
+
+        if len(images.shape) > 2:
+            temp_img = images
+        else:
+            temp_img = images[:, :, None]
+
+        shape = temp_img.shape
+        sigma = self.image_size * 0.1
+        alpha = self.image_size * variation
+        dx = filters.gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma) * alpha
+        dy = filters.gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma) * alpha
+        # dz = np.zeros_like(dx) #2d not used
+        # dz = filters.gaussian_filter((random_state.rand(*shape) * 2 - 1), 512*0.10, mode="constant", cval=0) * 512*variation
+
+        x, y, z = np.meshgrid(np.arange(shape[0]), np.arange(shape[1]), np.arange(shape[2]))
+        indices = np.reshape(y + dy, (-1, 1)), np.reshape(x + dx, (-1, 1)), np.reshape(z, (-1, 1))
+        # indices_3d = np.reshape(y + dy, (-1, 1)), np.reshape(x + dx, (-1, 1)), np.reshape(z + dz, (-1, 1))
+
+        if len(images.shape) > 2:
+            images = interpolation.map_coordinates(temp_img, indices, order=1, mode='constant',
+                                                   cval=float(np.min(images))).reshape(shape)
+        else:
+            images = interpolation.map_coordinates(temp_img, indices, order=1, mode='constant',
+                                                   cval=float(np.min(images))).reshape(shape)[:, :, 0]
+
+        output_annotation = np.zeros(annotations.shape, dtype=annotations.dtype)
+
+        for val in range(1, int(annotations.max()) + 1):
+            temp = copy.deepcopy(annotations).astype('int')
+            temp[temp != val] = 0
+            temp[temp > 0] = 1
+
+            if len(annotations.shape) > 2:
+                im = interpolation.map_coordinates(temp, indices, order=0, mode='constant', cval=0).reshape(shape)
+            else:
+                im = interpolation.map_coordinates(temp[:, :, None], indices, order=0, mode='constant',
+                                                   cval=0).reshape(
+                    shape)[:, :, 0]
+
+            im[im > 0.1] = val
+            im[im < val] = 0
+            output_annotation[im == val] = val
+        annotations = output_annotation
+        return images, annotations
+
+    def post_load_process(self, images, annotations):
+        if self.variation is not None:
+            min_val = np.min(images)
+            images -= min_val
+            if self.by_patient:
+                variation = self.variation[np.random.randint(len(self.variation))]
+                for i in range(images.shape[0]):
+                    images[i], annotations[i] = self.run_perturbation(images[i],annotations[i],variation)
+            else:
+                for i in range(images.shape[0]):
+                    variation = self.variation[np.random.randint(len(self.variation))]
+                    images[i], annotations[i] = self.run_perturbation(images[i],annotations[i],variation)
+            images += min_val
+        return images, annotations
+    def __init__(self, by_patient=False, variation=None):
+        '''
+        :param by_patient: perform randomly on each image in stack, or on the entire collective
+        :param variation: range of values np.round(np.arange(start=0, stop=2.6, step=0.5),2)
+        '''
+        self.by_patient = by_patient
+        self.variation = variation
+
+    def post_load_process(self, images, annotations):
+        if self.variation is not None:
+            min_val = np.min(images)
+            images -= min_val
+            if self.by_patient:
+                variation = self.variation[np.random.randint(len(self.variation))]
+                for i in range(images.shape[0]):
+                    images[i], annotations[i] = self.run_perturbation(images[i],annotations[i],variation)
+            else:
+                for i in range(images.shape[0]):
+                    variation = self.variation[np.random.randint(len(self.variation))]
+                    images[i], annotations[i] = self.run_perturbation(images[i],annotations[i],variation)
+            images += min_val
+            xx = 1
+        return images, annotations
+
+    def run_perturbation(self, images, annotations, variation):
+        if variation != 0:
+            images = self.scale_image(images, variation, 'linear')
+            output_annotation = np.zeros(annotations.shape, dtype=annotations.dtype)
+            for val in range(1, int(annotations.max()) + 1):
+                temp = copy.deepcopy(annotations).astype('int')
+                temp[temp != val] = 0
+                temp[temp > 0] = 1
+                im = temp
+                if np.max(im) != 0:
+                    im = self.scale_image(im, variation, 'nearest')
+
+                    im[im > 0.1] = val
+                    im[im < val] = 0
+                    output_annotation[im == val] = val
+            annotations = output_annotation
 
 class Rotate_Images_2D_Processor(Image_Processor):
     def __init__(self, image_size=512, by_patient=False, variation=None):
