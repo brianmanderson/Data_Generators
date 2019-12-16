@@ -35,9 +35,9 @@ class Normalize_Images(Image_Processor):
         '''
         self.mean_val, self.std_val = mean_val, std_val
 
-    def preload_single_image_process(self, image, annotation):
-        image = (image - self.mean_val)/self.std_val
-        return image, annotation
+    def preload_single_image_process(self, images, annotations):
+        images = (images - self.mean_val)/self.std_val
+        return images, annotations
 
 class Threshold_Images(Image_Processor):
     def __init__(self, lower_bound=-np.inf, upper_bound=np.inf):
@@ -49,8 +49,9 @@ class Threshold_Images(Image_Processor):
         self.upper = upper_bound
 
     def post_load_process(self, images, annotations):
-        image[image<self.lower] = self.lower
-        image[image>self.upper] = self.upper
+        images[images<self.lower] = self.lower
+        images[images>self.upper] = self.upper
+        return images, annotations
 
 
 class Perturbation_Class(Image_Processor):
