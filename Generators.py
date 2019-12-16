@@ -39,6 +39,7 @@ class Normalize_Images(Image_Processor):
         images = (images - self.mean_val)/self.std_val
         return images, annotations
 
+
 class Threshold_Images(Image_Processor):
     def __init__(self, lower_bound=-np.inf, upper_bound=np.inf):
         '''
@@ -53,6 +54,16 @@ class Threshold_Images(Image_Processor):
         images[images>self.upper] = self.upper
         return images, annotations
 
+
+class Add_Noise_To_Images(Image_Processor):
+    def __init__(self, noise=0.0):
+        self.noise = noise
+
+    def post_load__process(self, images, annotations):
+        if self.noise != 0.0:
+            noisy_image = self.noise * np.random.normal(loc=0.0, scale=1.0, size=images.shape)
+            images += noisy_image
+        return images, annotations
 
 class Perturbation_Class(Image_Processor):
     def __init__(self,pertubartions,image_shape, by_patient):
