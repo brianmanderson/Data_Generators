@@ -317,11 +317,8 @@ class image_loader(object):
                 images_temp, annotations_temp = self.image_dictionary[image_names[i]]
             images[index] = np.squeeze(images_temp)
             annotations[index] = np.squeeze(annotations_temp)
-        min_val = np.min(images)
-        images -= min_val
         for image_processors in self.image_processors:
             images, annotations = image_processors.post_load_process(images, annotations)
-        images += min_val
 
         if self.three_channel and images.shape[-1] != 3:
             images_stacked = np.stack([images,images,images],axis=-1)

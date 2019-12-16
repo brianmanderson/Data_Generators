@@ -1,20 +1,26 @@
 import numpy as np
 from scipy.ndimage import interpolation, filters
 import cv2, math, copy
+from Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
 
 
 class Image_Processor(object):
     def preload_single_image_process(self, image, annotation):
         '''
         This is for image processes done loading on a slice by slice basis that only need to be done once, like
-        normalizing a CT slice
-        :param image:
-        :param annotation:
+        normalizing a CT slice with a mean and std
+        :param image: Some image of shape [n_row, m_col]
+        :param annotation: Some image of shape [n_row, m_col]
         :return:
         '''
         return image, annotation
 
     def post_load_process(self, images, annotations):
+        '''
+        :param images: Images set to values of 0 to max - min. This is done
+        :param annotations:
+        :return:
+        '''
         return images, annotations
 
 
@@ -107,51 +113,7 @@ class Perturbation_Class(Image_Processor):
         images -= min_val # This way any rotation gets a 0, irrespective of previous normalization
         for key in self.pertubartions.keys():
             variation = self.pertubartions[key][np.random.randint(0, len(self.pertubartions[key]))]
-            if key == 'Rotation':   # 'Rotation': np.arange(start=-5, stop=6, step=1)
-                shape_size_image = shape_size_annotation = self.image_shape[1]
-                if variation not in self.M_image.keys():
-                    M_image = cv2.getRotationMatrix2D((int(shape_size_image) / 2, int(shape_size_image) / 2), variation,1)
-                    self.M_image[variation] = M_image
-                else:
-                    M_image = self.M_image[variation]
-                if variation != 0:
-                    # images = cv2.warpAffine(images,M_image, (int(shape_size_image), int(shape_size_image)))
-                    output_image = np.zeros(images.shape,dtype=images.dtype)
-                    if len(images.shape) > 2:
-                        for image in range(images.shape[0]):
-                            im = images[image, :, :]
-                            if np.max(im) != 0:
-                                im = cv2.warpAffine(im, M_image, (int(shape_size_image), int(shape_size_image)),flags=cv2.INTER_LINEAR)
-                            output_image[image, :, :] = im
-                    else:
-                        output_image = cv2.warpAffine(images, M_image, (int(shape_size_image), int(shape_size_image)),flags=cv2.INTER_LINEAR)
-                    images = output_image
-
-                    output_annotation = np.zeros(annotations.shape,dtype=annotations.dtype)
-                    for val in range(1, int(annotations.max()) + 1):
-                        temp = copy.deepcopy(annotations).astype('int')
-                        temp[temp != val] = 0
-                        temp[temp > 0] = 1
-                        if len(annotations.shape) > 2:
-                            for image in range(annotations.shape[0]):
-                                im = temp[image, :, :]
-                                if np.max(im) != 0:
-                                    im = cv2.warpAffine(im, M_image,
-                                                        (int(shape_size_annotation), int(shape_size_annotation)),flags=cv2.INTER_NEAREST)
-                                    im[im > 0.1] = val
-                                    im[im < val] = 0
-                                    output_annotation[image, :, :][im == val] = val
-                        else:
-                            im = temp
-                            if np.max(im) != 0:
-                                im = cv2.warpAffine(im, M_image,
-                                                    (int(shape_size_annotation), int(shape_size_annotation)),flags=cv2.INTER_NEAREST)
-                                im[im > 0.1] = val
-                                im[im < val] = 0
-                                output_annotation[im == val] = val
-                        # output_annotation[annotations == val] = val
-                    annotations = output_annotation
-            elif key == 'Scale':    # 'Scale': np.round(np.arange(start=-0.15, stop=0.20, step=0.05),2)
+            if key == 'Scale':    # 'Scale': np.round(np.arange(start=-0.15, stop=0.20, step=0.05),2)
                 if variation != 0:
                     output_image = np.zeros(images.shape, dtype=images.dtype)
                     if len(images.shape) > 2:
@@ -214,6 +176,8 @@ class Rotate_Images_2D_Processor(Image_Processor):
 
     def post_load_process(self, images, annotations):
         if self.variation is not None:
+            min_val = np.min(images)
+            images -= min_val
             if self.by_patient:
                 variation = self.variation[np.random.randint(len(self.variation))]
                 for i in range(images.shape[0]):
@@ -222,6 +186,7 @@ class Rotate_Images_2D_Processor(Image_Processor):
                 for i in range(images.shape[0]):
                     variation = self.variation[np.random.randint(len(self.variation))]
                     images[i], annotations[i] = self.run_perturbation(images[i],annotations[i],variation)
+            images += min_val
         return images, annotations
 
     def run_perturbation(self, image, annotation, variation):
@@ -270,6 +235,8 @@ class Shift_Images_Processor(Image_Processor):
 
     def post_load_process(self, images, annotations):
         if self.variation_range is not None:
+            min_val = np.min(images)
+            images -= min_val
             if not self.by_patient:
                 for i in range(len(images)):
                     variation_row = self.variation_range[np.random.randint(len(self.variation_range))]
@@ -280,6 +247,7 @@ class Shift_Images_Processor(Image_Processor):
                 variation_row = self.variation_range[np.random.randint(len(self.variation_range))]
                 variation_col = self.variation_range[np.random.randint(len(self.variation_range))]
                 images, annotations = self.make_perturbation(images, annotations, variation_row, variation_col)
+            images += min_val
         return images, annotations
 
     def make_perturbation(self, images, annotations, variation_row, variation_col):
@@ -294,7 +262,7 @@ class Shift_Images_Processor(Image_Processor):
         return images, annotations
 
 
-class Random_2D_Processor(Image_Processor):
+class Random_2D_Deformation_Processor(Image_Processor):
     def __init__(self, image_size=512, by_patient=False, variation=None):
         '''
         :param image_shape: shape of images row/col
@@ -356,6 +324,8 @@ class Random_2D_Processor(Image_Processor):
 
     def post_load_process(self, images, annotations):
         if self.variation is not None:
+            min_val = np.min(images)
+            images -= min_val
             if self.by_patient:
                 variation = self.variation[np.random.randint(len(self.variation))]
                 for i in range(images.shape[0]):
@@ -364,6 +334,7 @@ class Random_2D_Processor(Image_Processor):
                 for i in range(images.shape[0]):
                     variation = self.variation[np.random.randint(len(self.variation))]
                     images[i], annotations[i] = self.run_perturbation(images[i],annotations[i],variation)
+            images += min_val
         return images, annotations
 
 
