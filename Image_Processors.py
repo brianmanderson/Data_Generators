@@ -125,110 +125,40 @@ class Add_Noise_To_Images(Image_Processor):
         return images, annotations
 
 
-class Perturbation_Class(Image_Processor):
-    def __init__(self,pertubartions,image_shape, by_patient):
+class Random_Horizontal_Vertical_Flips(Image_Processor):
+    def __init__(self, by_patient=False, h_flip=False, v_flip=False):
         '''
-        :param pertubartions: Dictionary of keys for perturbations, examples are 'Shift', 'Rotation', '2D_Random'
-        :param image_shape:
-        :param by_patient:
+        :param by_patient: Process all images as single patient (flip together)
+        :param h_flip: Perform horizontal flips?
+        :param v_flip: Perform vertical flips?
         '''
-        self.by_patient = by_patient
-        self.pertubartions = pertubartions
-        self.output_annotation_template = np.zeros(image_shape)
-        self.output_images_template = np.zeros(image_shape)
-        self.M_image = {}
-        self.image_shape = image_shape
-
-    def scale_image(self, im, variation=0, interpolator='linear'):
-        if interpolator is 'linear':
-            temp_scale = cv2.resize(im, None, fx=1 + variation, fy=1 + variation,
-                                    interpolation=cv2.INTER_LINEAR)
-        elif interpolator is 'nearest':
-            temp_scale = cv2.resize(im, None, fx=1 + variation, fy=1 + variation,
-                                    interpolation=cv2.INTER_NEAREST)
-        else:
-            return im
-
-        center = (temp_scale.shape[0] // 2, temp_scale.shape[1] // 2)
-        if variation > 0:
-            im = temp_scale[int(center[0] - 512 / 2):int(center[0] + 512 / 2),
-                 int(center[1] - 512 / 2):int(center[1] + 512 / 2)]
-        elif variation < 0:
-            padx = (512 - temp_scale.shape[0]) / 2
-            pady = (512 - temp_scale.shape[1]) / 2
-            im = np.pad(temp_scale, [
-                (math.floor(padx), math.ceil(padx)),
-                (math.floor(pady), math.ceil(pady))], mode='constant',
-                        constant_values=np.min(temp_scale))
-        return im
+        self.by_patient, self.h_flip, self.v_flip = by_patient, h_flip, v_flip
 
     def post_load_process(self, images, annotations):
-        if not self.by_patient:
-            for i in range(len(images)):
-                images[i, :, :], annotations[i, :, :] = self.make_pertubartions(images[i, :, :],annotations[i, :, :])
-        else:
-            images, annotations = self.make_pertubartions(images, annotations)
+        if self.h_flip or self.v_flip:
+            if self.by_patient:
+                if self.h_flip and np.random.randint(2) == 1:
+                    images = images[..., :, ::-1]
+                    annotations = annotations[..., :, ::-1]
+                if self.v_flip and np.random.randint(2) == 1:
+                    images = images[..., ::-1, :]
+                    annotations = annotations[..., ::-1, :]
+            else:
+                for i in range(images.shape[0]):
+                    if self.h_flip and np.random.randint(2) == 1:
+                        images[i] = images[i, :, ::-1]
+                        annotations[i] = annotations[i, :, ::-1]
+                    if self.v_flip and np.random.randint(2) == 1:
+                        images[i] = images[i, ::-1, :]
+                        annotations[i] = annotations[i, ::-1, :]
         return images, annotations
-
-    def make_pertubartions(self,images,annotations):
-        min_val = np.min(images)
-        images -= min_val # This way any rotation gets a 0, irrespective of previous normalization
-        for key in self.pertubartions.keys():
-            variation = self.pertubartions[key][np.random.randint(0, len(self.pertubartions[key]))]
-            if key == 'Scale':    # 'Scale': np.round(np.arange(start=-0.15, stop=0.20, step=0.05),2)
-                if variation != 0:
-                    output_image = np.zeros(images.shape, dtype=images.dtype)
-                    if len(images.shape) > 2:
-                        for image in range(images.shape[0]):
-                            im = images[image, :, :]
-                            if np.max(im) != 0:
-                                im = self.scale_image(im, variation, 'linear')
-                            output_image[image, :, :] = im
-                    else:
-                        output_image = self.scale_image(images, variation, 'linear')
-
-                    images = output_image
-                    output_annotation = np.zeros(annotations.shape, dtype=annotations.dtype)
-
-                    for val in range(1, int(annotations.max()) + 1):
-                        temp = copy.deepcopy(annotations).astype('int')
-                        temp[temp != val] = 0
-                        temp[temp > 0] = 1
-                        if len(annotations.shape) > 2:
-                            for image in range(annotations.shape[0]):
-                                im = temp[image, :, :]
-                                if np.max(im) != 0:
-                                    im = self.scale_image(im, variation, 'nearest')
-
-                                    im[im > 0.1] = val
-                                    im[im < val] = 0
-                                    output_annotation[image, :, :][im == val] = val
-                        else:
-                            im = temp
-                            if np.max(im) != 0:
-                                im = self.scale_image(im, variation, 'nearest')
-
-                                im[im > 0.1] = val
-                                im[im < val] = 0
-                                output_annotation[im == val] = val
-                    annotations = output_annotation
-            elif key is 'h_flip':   # 'h_flip': [0, 1]
-                if variation != 0:
-                    images = images[:, ::-1]
-                    annotations = annotations[:, ::-1]
-
-
-        images += min_val
-        output_image = images
-        output_annotation = annotations
-        return output_image, output_annotation
 
 
 class Random_Scale_Processor(Image_Processor):
     def __init__(self, by_patient=False, variation=None):
         '''
         :param by_patient: perform randomly on each image in stack, or on the entire collective
-        :param variation: range of values np.round(np.arange(start=0, stop=2.6, step=0.5),2)
+        :param variation: range of values by which to scale the image, np.round(np.arange(start=0, stop=2.6, step=0.5),2)
         '''
         self.by_patient = by_patient
         self.variation = variation
