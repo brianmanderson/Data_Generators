@@ -32,36 +32,6 @@ def load_obj(path):
         return out
 
 
-class IndexTracker(object):
-    def __init__(self, ax, X):
-        self.ax = ax
-        ax.set_title('use scroll wheel to navigate images')
-
-        self.X = X
-        rows, cols, self.slices = X.shape
-        self.ind = np.where(self.X != 0)[-1]
-        if len(self.ind) > 0:
-            self.ind = self.ind[len(self.ind)//2]
-        else:
-            self.ind = self.slices//2
-
-        self.im = ax.imshow(self.X[:, :, self.ind],cmap='gray')
-        self.update()
-
-    def onscroll(self, event):
-        print("%s %s" % (event.button, event.step))
-        if event.button == 'up':
-            self.ind = (self.ind + 1) % self.slices
-        else:
-            self.ind = (self.ind - 1) % self.slices
-        self.update()
-
-    def update(self):
-        self.im.set_data(self.X[:, :, self.ind])
-        self.ax.set_ylabel('slice %s' % self.ind)
-        self.im.axes.figure.canvas.draw()
-
-
 def remove_non_liver(annotations, threshold=0.5, volume_threshold=9999999):
     annotations = copy.deepcopy(annotations)
     if len(annotations.shape) == 4:
