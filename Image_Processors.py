@@ -74,6 +74,7 @@ class Ensure_Image_Proportions(Image_Processor):
             image, annotation = self.convert_image_size(image, annotation)
         return image, annotation
 
+
 class Normalize_Images(Image_Processor):
     def __init__(self, mean_val=0, std_val=1):
         '''
