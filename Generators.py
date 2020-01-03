@@ -1734,7 +1734,10 @@ class Image_Clipping_and_Padding(Sequence):
             mask = np.sum(out_annotations[...,1:],axis=-1)[...,None]
             mask = np.repeat(mask,self.generator.num_classes,axis=-1)
             mask[...,0] = 1 - mask[...,0]
-            return [out_images,mask], out_annotations
+            sum_vals = np.zeros(mask.shape)
+            sum_vals[...,0] = mask[...,0]
+            mask[...,0] = 0
+            return [out_images,mask, sum_vals], out_annotations
         if self.mask_output:
             out_images[out_annotations[...,0] == 1] = -3.55
         return out_images, out_annotations
