@@ -4,7 +4,18 @@ import cv2, math, copy
 from skimage.measure import block_reduce
 from Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
 
-
+'''
+Description of code
+Ensure_Image_Proportions(image_size-row, image_size_col): ensures images are proper proportions
+Normalize_Images(mean_val, std_val): Normalize images
+Threshold_Images(lower_bound, upper_bound): threshold, normally after normalizing, recommended -3.55 to +3.55
+Add_Noise_To_Images(by_patient, variation): add noise to patient images
+Random_Horizontal_Vertical_Flips(by_patient, h_flip, v_flip): randomly flip 2D images vertically/horizontally
+Random_Scale_Processor(by_patient, variation): randomly scale images by certain amounts
+Rotate_Images_2D_Processor(by_patient, image_size, variation): Randomly rotate images in 2D plane
+Shift_Images_Processor(by_patient, variation, positive_to_negative): Shift images by a certain variation in 2D plane
+Random_2D_Deformation_Processor(by_patient, image_size, variation): Randomly deform images in 2D plane
+'''
 class Image_Processor(object):
     def preload_single_image_process(self, image, annotation):
         '''
@@ -220,7 +231,7 @@ class Random_Scale_Processor(Image_Processor):
 
 
 class Rotate_Images_2D_Processor(Image_Processor):
-    def __init__(self, image_size=512, by_patient=False, variation=None):
+    def __init__(self, by_patient=False, image_size=512, variation=None):
         '''
         :param image_size: size of image row/col
         :param by_patient: perform on all images in stack, or vary for each one
@@ -275,15 +286,15 @@ class Rotate_Images_2D_Processor(Image_Processor):
 
 
 class Shift_Images_Processor(Image_Processor):
-    def __init__(self,by_patient=False, variation=0, positive_negative=False):
+    def __init__(self,by_patient=False, variation=0, positive_to_negative=False):
         '''
         :param by_patient: Perform the same scaling across all images in stack, or one by one
         :param variation: Range of shift variations in rows and columns, up to and including! So 5 is 0,1,2,3,4,5
-        :param positive_negative: if True and variation is 30, will range from -30 to +30
+        :param positive_to_negative: if True and variation is 30, will range from -30 to +30
         '''
         self.by_patient = by_patient
         if variation != 0:
-            if positive_negative:
+            if positive_to_negative:
                 self.variation_range = np.asarray(range(-variation,variation+1))
             else:
                 self.variation_range = np.asarray(range(variation+1))
@@ -320,7 +331,7 @@ class Shift_Images_Processor(Image_Processor):
 
 
 class Random_2D_Deformation_Processor(Image_Processor):
-    def __init__(self, image_size=512, by_patient=False, variation=None):
+    def __init__(self, by_patient=False, image_size=512, variation=None):
         '''
         :param image_shape: shape of images row/col
         :param by_patient: perform randomly on each image in stack, or on the entire collective
