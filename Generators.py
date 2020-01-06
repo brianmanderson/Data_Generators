@@ -1263,7 +1263,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         :param verbose:
         :param num_classes:
         :param flatten:
-        :param noise:
         :param prediction_class:
         :param output_size:
         :param data_paths:
@@ -1275,8 +1274,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         :param is_test_set:
         :param expansion:
         :param clip:
-        :param mean_val:
-        :param std_val:
         :param max_image_size:
         :param skip_correction:
         :param normalize_to_value:
