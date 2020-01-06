@@ -2,9 +2,8 @@ from keras.utils import Sequence, np_utils
 import keras.backend as K
 from keras.models import load_model
 from skimage import morphology
-from skimage.measure import block_reduce
-import os, glob, pickle
-from Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
+import os, glob, pickle, sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))  #Add path to module
 import SimpleITK as sitk
 from Image_Processors import *
 
