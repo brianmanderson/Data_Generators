@@ -1249,9 +1249,9 @@ class Train_Data_Generator_class(Sequence):
 class Train_Data_Generator3D(Train_Data_Generator_class):
 
     def __init__(self, image_size=512, batch_size=1, perturbations=None, three_layer=True,whole_patient=True,verbose=False,
-                 num_classes=2, flatten=False,noise=0.0,prediction_class=None,output_size = None,save_and_reload=True,
+                 num_classes=2, flatten=False,noise=None,prediction_class=None,output_size = None,save_and_reload=True,
                  data_paths=None, shuffle=False, all_for_one=False, write_predictions = False,is_auto_encoder=False,
-                 num_patients=1,is_test_set=False, expansion=0, clip=0,mean_val=0, std_val=1,auto_normalize=False,
+                 num_patients=1,is_test_set=False, expansion=0, clip=0,mean_val=None, std_val=None,auto_normalize=False,
                  max_image_size=999,skip_correction=False, normalize_to_value=None, wanted_indexes=None, z_images=32,
                  image_processors=None):
         '''
@@ -1299,7 +1299,10 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         self.verbose = verbose
         self.write_predictions = write_predictions
         self.prediction_class = prediction_class
-        self.mean_val, self.std_val = mean_val, std_val
+        if mean_val is not None or std_val is not None:
+            raise KeyError('Use Normalize_Images in the Image_Processors module!')
+        if noise is not None:
+            raise KeyError('Use Add_Noise_To_Images in the Image_Processors module!')
         self.normalize_to_value = normalize_to_value
         self.skip_correction = skip_correction
         if type(clip) == int:
@@ -1313,7 +1316,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         self.num_classes = num_classes
         self.batch_size = batch_size
         self.z_images = z_images
-        self.noise = noise
         if self.is_auto_encoder:
             self.train_dataset_reader_no_changes = copy.deepcopy(self.train_dataset_reader)
         self.get_image_lists()
@@ -1344,21 +1346,8 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
                 abs_data = np.abs(data-np.max(data)*0.1)
                 bottom_ten = np.min(np.where(abs_data==np.min(abs_data))[0])
                 data = data[bottom_ten:]
-                self.mean_val = np.mean(data)
-                self.std_val = np.std(data)
             if self.is_auto_encoder:
                 non_noisy_image = copy.deepcopy(train_images_out)
-                if self.mean_val != 0 or self.std_val != 1:
-                    non_noisy_image = (non_noisy_image - self.mean_val) / self.std_val
-                    non_noisy_image[non_noisy_image > 3.55] = 3.55
-                    non_noisy_image[non_noisy_image < -3.55] = -3.55
-            if self.mean_val != 0 or self.std_val != 1 or train_images_out.max() == 1:
-                train_images_out = (train_images_out - self.mean_val) / self.std_val
-                if self.noise != 0:
-                    train_images_out += self.noise * np.random.normal(loc=0.0, scale=1.0, size=train_images_out.shape)
-                train_images_out[train_images_out > 3.55] = 3.55
-                train_images_out[train_images_out < -3.55] = -3.55
-                # train_images_out[train_annotations_out[..., -1] == 0] = 0 # Don't mask training images
                 if self.normalize_to_value:
                     train_images_out = (train_images_out - -3.55) / (2*3.55) * self.normalize_to_value
                     # train_images_out[train_annotations_out[..., -1] == 0] = 0
