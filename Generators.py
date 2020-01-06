@@ -1297,9 +1297,9 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         self.write_predictions = write_predictions
         self.prediction_class = prediction_class
         if mean_val is not None or std_val is not None:
-            raise KeyError('Use Normalize_Images in the Image_Processors module!')
+            raise KeyError('Use Normalize_Images in the Image_Processors module instead of mean_val or std_val!')
         if noise is not None:
-            raise KeyError('Use Add_Noise_To_Images in the Image_Processors module!')
+            raise KeyError('Use Add_Noise_To_Images in the Image_Processors module instead of noise!')
         self.normalize_to_value = normalize_to_value
         self.skip_correction = skip_correction
         if type(clip) == int:
