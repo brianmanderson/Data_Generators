@@ -1370,18 +1370,18 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
 
 
 class Image_Clipping_and_Padding(Sequence):
-    def __init__(self, layers_dict, generator, return_mask=False, liver_box=False, mask_output=False,
+    def __init__(self, layers_dict, generator, return_mask=False, liver_box=False, mask_image=False,
                  bounding_box_expansion=(5,10,10)):
         '''
         :param layers_dict: Dictionary of layers for model, Layer_0, Layer_1, Base, etc.
         :param generator: a data generator
         :param return_mask: return the mask used for masking input data
         :param liver_box: use a bounding box
-        :param mask_output: mask the image data
+        :param mask_image: mask the image data
         :param bounding_box_expansion: z, x, y expansions for bounding box
         '''
         self.bounding_box_expansion = bounding_box_expansion
-        self.mask_output = mask_output
+        self.mask_image = mask_image
         self.patient_dict = {}
         self.liver_box = liver_box
         self.generator = generator
@@ -1428,6 +1428,8 @@ class Image_Clipping_and_Padding(Sequence):
         out_annotations[..., 0] = 1
         out_images[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = x[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
         out_annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = y[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
+        if self.mask_image:
+            out_images[out_annotations[...,0] == 1] = -3.55
         if self.return_mask:
             mask = np.sum(out_annotations[...,1:],axis=-1)[...,None]
             mask = np.repeat(mask,self.generator.num_classes,axis=-1)
@@ -1436,8 +1438,6 @@ class Image_Clipping_and_Padding(Sequence):
             sum_vals[...,0] = mask[...,0]
             mask[...,0] = 0
             return [out_images,mask, sum_vals], out_annotations
-        if self.mask_output:
-            out_images[out_annotations[...,0] == 1] = -3.55
         return out_images, out_annotations
 
     def __len__(self):
