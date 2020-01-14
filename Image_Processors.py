@@ -39,20 +39,26 @@ class Image_Processor(object):
 
 
 class Fuzzy_Segment_edges(Image_Processor):
-    def __init__(self, fuzzy_margin=10, variable_range=False):
+    def __init__(self, fuzzy_margin=10, variable_range=False, spacing=(1,1,5)):
         '''
         :param fuzzy_margin: margin to expand region, mm
         :param variable_range: Want this range to vary?
+        :param spacing: Spacing of images, assumes this is constance
         '''
+        self.fuzzy_margin = fuzzy_margin
+        self.variable_range = variable_range
+        self.spacing = spacing
         self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
 
     def make_fuzzy_label(self, annotation):
         distance_map = np.zeros(annotation.shape)
-        value = np.random.randint(10)
+        value = self.fuzzy_margin
+        if self.variable_range:
+            value = np.random.randint(self.fuzzy_margin)
         for i in range(1, annotation.shape[-1]):
             temp_annotation = annotation[0, ..., i].astype('int')
             distance_map[0, ..., i] = self.Fill_Missing_Segments_Class.run_distance_map(temp_annotation,
-                                                                                        spacing=(1, 1, 5))
+                                                                                        spacing=self.spacing)
         distance_map[distance_map > 0] = 0
         distance_map = np.abs(distance_map)
         distance_map[distance_map > value] = value  # Anything greater than 10 mm away set to 0
@@ -63,6 +69,14 @@ class Fuzzy_Segment_edges(Image_Processor):
         distance_map /= total[..., None]
         return distance_map
 
+    def post_load_process(self, images, annotations):
+        '''
+        :param images: Images set to values of 0 to max - min. This is done
+        :param annotations:
+        :return:
+        '''
+        annotations = self.make_fuzzy_label(annotations)
+        return images, annotations
 
 class Ensure_Image_Proportions(Image_Processor):
     def __init__(self, image_size_row=512, image_size_col=512):
