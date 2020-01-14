@@ -1,8 +1,10 @@
 import numpy as np
 from scipy.ndimage import interpolation, filters
-import cv2, math, copy
+import cv2, math, copy, os, sys
 from skimage.measure import block_reduce
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))  #Add path to module
 from Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
+from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
 
 '''
 Description of code
@@ -34,6 +36,32 @@ class Image_Processor(object):
         :return:
         '''
         return images, annotations
+
+
+class Fuzzy_Segment_edges(Image_Processor):
+    def __init__(self, fuzzy_margin=10, variable_range=False):
+        '''
+        :param fuzzy_margin: margin to expand region, mm
+        :param variable_range: Want this range to vary?
+        '''
+        self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
+
+    def make_fuzzy_label(self, annotation):
+        distance_map = np.zeros(annotation.shape)
+        value = np.random.randint(10)
+        for i in range(1, annotation.shape[-1]):
+            temp_annotation = annotation[0, ..., i].astype('int')
+            distance_map[0, ..., i] = self.Fill_Missing_Segments_Class.run_distance_map(temp_annotation,
+                                                                                        spacing=(1, 1, 5))
+        distance_map[distance_map > 0] = 0
+        distance_map = np.abs(distance_map)
+        distance_map[distance_map > value] = value  # Anything greater than 10 mm away set to 0
+        distance_map = 1 - distance_map / value
+        distance_map[annotation[..., 0] == 1] = 0
+        distance_map[..., 0] = annotation[..., 0]
+        total = np.sum(distance_map, axis=-1)
+        distance_map /= total[..., None]
+        return distance_map
 
 
 class Ensure_Image_Proportions(Image_Processor):
