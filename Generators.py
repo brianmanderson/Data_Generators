@@ -496,7 +496,7 @@ class Data_Set_Reader(image_loader):
 
 
 class Train_Data_Generator2D(Sequence):
-    def __init__(self, image_size=512, batch_size=5, perturbations=None, num_of_classes=2, data_paths=None,clip=0,expansion=0,
+    def __init__(self, image_size=512, batch_size=5, perturbations=None, data_paths=None,clip=0,expansion=0,
                  whole_patient=False, shuffle=False, flatten=False, noise=0.0, normalize_to_255=False,z_images=16,auto_normalize=False,
                  all_for_one=False, three_channel=True, using_perturb_engine=False,on_VGG=False,normalize_to_value=None,
                  resize_class=None,add_filename_extension=True, is_test_set=False, reduced_interest=False, mean_val=0, std_val=1):
@@ -514,7 +514,6 @@ class Train_Data_Generator2D(Sequence):
         self.flatten = flatten
         self.shuffle = shuffle
         self.all_for_one = all_for_one
-        self.num_of_classes = num_of_classes
         self.on_VGG = on_VGG
         extension = 'Single_Images3D'
         self.mean_val = mean_val
@@ -573,15 +572,13 @@ class Train_Data_Generator2D(Sequence):
                 temp[annotations[:,:,:,0]==0] = 0
                 train_images[:,:,:,i] = temp
             annotations[annotations == 3] = 0
-        if not self.using_perturb_engine:
-            annotations = np_utils.to_categorical(annotations,self.num_of_classes)
         if self.flatten:
             class_weights_dict = {0:1,1:20}
             class_weights = np.ones([annotations.shape[0],annotations.shape[1],annotations.shape[2]])
-            for i in range(self.num_of_classes):
+            for i in range(annotations.shape[-1]):
                 class_weights[annotations[:,:,:,i] == 1] = class_weights_dict[i]
             annotations = np.reshape(annotations,
-                                        [train_images.shape[0],self.image_size*self.image_size*self.num_of_classes])
+                                        [train_images.shape[0],self.image_size*self.image_size*annotations.shape[-1]])
             class_weights = np.reshape(class_weights,[train_images.shape[0],self.image_size*self.image_size,1])
             return train_images, annotations, class_weights
         if self.auto_normalize:
@@ -1137,7 +1134,6 @@ class Train_Data_Generator_class(Sequence):
         self.shuffle = shuffle
         self.batch_size = batch_size
         self.all_for_one = all_for_one
-        self.num_of_classes = num_of_classes
         self.whole_patient = whole_patient
         self.is_auto_encoder = False # This can change in sub classes
         self.wanted_indexes = wanted_indexes
@@ -1318,7 +1314,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         train_images_full_size, train_annotations_full_size = self.train_dataset_reader.load_images(index,self.z_images)  # how many images to pull
         if not self.skip_correction:
             if len(train_images_full_size.shape) == 5:
-                train_images_out, train_annotations_out = np.empty(train_images_full_size.shape), np.empty(train_images_full_size.shape[:-1] + (self.num_of_classes,))
+                train_images_out, train_annotations_out = np.empty(train_images_full_size.shape), np.empty(train_images_full_size.shape)
                 for i in range(train_images_full_size.shape[0]):
                     train_images_out[i], train_annotations_out[i] = self.return_corrected_image(train_images_full_size[i,...],
                                                                                                 train_annotations_full_size[i, ...])
