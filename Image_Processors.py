@@ -38,7 +38,7 @@ class Image_Processor(object):
         return images, annotations
 
 
-class Fuzzy_Segment_edges(Image_Processor):
+class Fuzzy_Segment_Liver_Lobes(Image_Processor):
     def __init__(self, fuzzy_margin=10, variable_range=False, spacing=(1,1,5)):
         '''
         :param fuzzy_margin: margin to expand region, mm
