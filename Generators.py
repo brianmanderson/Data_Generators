@@ -1113,7 +1113,7 @@ def get_bounding_box(train_images_out_base, train_annotations_out_base, include_
 
 class Train_Data_Generator_class(Sequence):
 
-    def __init__(self, image_size=512, perturbations=None, three_channel=True,whole_patient=True,num_of_classes=2,wanted_indexes=None,
+    def __init__(self, image_size=512, perturbations=None, three_channel=True,whole_patient=True,wanted_indexes=None,
                  data_paths=None, num_patients=1,is_test_set=False, expansion=0,shuffle=False, batch_size=1,
                  all_for_one=False, save_and_reload=True,image_processors=None):
         '''
@@ -1236,7 +1236,6 @@ class Train_Data_Generator_class(Sequence):
                     i = 0
         if np.max(train_annotations) == 1:
             xxx = 1
-        train_annotations = np_utils.to_categorical(train_annotations, self.num_of_classes)
         if self.wanted_indexes:
             train_annotations = train_annotations[...,self.wanted_indexes]
         if self.whole_patient:
@@ -1248,7 +1247,7 @@ class Train_Data_Generator_class(Sequence):
 class Train_Data_Generator3D(Train_Data_Generator_class):
 
     def __init__(self, image_size=512, batch_size=1, perturbations=None, three_layer=True,whole_patient=True,verbose=False,
-                 num_classes=2, flatten=False,noise=None,prediction_class=None,output_size = None,save_and_reload=True,
+                 flatten=False,noise=None,prediction_class=None,output_size = None,save_and_reload=True,
                  data_paths=None, shuffle=False, all_for_one=False, write_predictions = False,is_auto_encoder=False,
                  num_patients=1,is_test_set=False, expansion=0, clip=0,mean_val=None, std_val=None,auto_normalize=False,
                  max_image_size=999,skip_correction=False, normalize_to_value=None, wanted_indexes=None, z_images=32,
@@ -1260,7 +1259,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         :param three_layer:
         :param whole_patient:
         :param verbose:
-        :param num_classes:
         :param flatten:
         :param prediction_class:
         :param output_size:
@@ -1280,7 +1278,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         :param z_images:
         '''
         super().__init__(image_size=image_size, perturbations=perturbations, three_channel=three_layer,
-                         whole_patient=whole_patient, num_of_classes=num_classes,save_and_reload=save_and_reload,
+                         whole_patient=whole_patient, save_and_reload=save_and_reload,
                          data_paths=data_paths, num_patients=num_patients,is_test_set=is_test_set, expansion=expansion,
                          shuffle=shuffle, batch_size=batch_size, all_for_one=all_for_one, wanted_indexes=wanted_indexes,
                          image_processors=image_processors)
@@ -1309,7 +1307,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         self.all_for_one = all_for_one
         self.shuffle = shuffle
         self.flatten = flatten
-        self.num_classes = num_classes
         self.batch_size = batch_size
         self.z_images = z_images
         if self.is_auto_encoder:
@@ -1432,7 +1429,7 @@ class Image_Clipping_and_Padding(Sequence):
             out_images[out_annotations[...,0] == 1] = -3.55
         if self.return_mask:
             mask = np.sum(out_annotations[...,1:],axis=-1)[...,None]
-            mask = np.repeat(mask,self.generator.num_classes,axis=-1)
+            mask = np.repeat(mask,out_annotations.shape[-1],axis=-1)
             mask[...,0] = 1 - mask[...,0]
             sum_vals = np.zeros(mask.shape)
             sum_vals[...,0] = mask[...,0]

@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.ndimage import interpolation, filters
+from keras.utils import np_utils
 import cv2, math, copy, os, sys
 from skimage.measure import block_reduce
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))  #Add path to module
@@ -51,9 +52,9 @@ class Fuzzy_Segment_Liver_Lobes(Image_Processor):
     def make_fuzzy_label(self, annotation, variation):
         distance_map = np.zeros(annotation.shape)
         for i in range(1, annotation.shape[-1]):
-            temp_annotation = annotation[0, ..., i].astype('int')
-            distance_map[0, ..., i] = self.Fill_Missing_Segments_Class.run_distance_map(temp_annotation,
-                                                                                        spacing=self.spacing)
+            temp_annotation = annotation[..., i].astype('int')
+            distance_map[..., i] = self.Fill_Missing_Segments_Class.run_distance_map(temp_annotation,
+                                                                                     spacing=self.spacing)
         distance_map[distance_map > 0] = 0
         distance_map = np.abs(distance_map)
         distance_map[distance_map > variation] = variation  # Anything greater than 10 mm away set to 0
@@ -74,6 +75,24 @@ class Fuzzy_Segment_Liver_Lobes(Image_Processor):
             variation = self.variation[np.random.randint(len(self.variation))]
             annotations = self.make_fuzzy_label(annotations, variation)
         return images, annotations
+
+
+class Annotations_To_Categorical(Image_Processor):
+    def __init__(self, num_of_classes=2):
+        '''
+        :param num_of_classes: number of classes
+        '''
+        self.num_of_classes = num_of_classes
+
+    def preload_single_image_process(self, images, annotations):
+        '''
+        :param images: Images set to values of 0 to max - min. This is done
+        :param annotations:
+        :return:
+        '''
+        annotations = np_utils.to_categorical(annotations, self.num_of_classes)
+        return images, annotations
+
 
 class Ensure_Image_Proportions(Image_Processor):
     def __init__(self, image_size_row=512, image_size_col=512):
