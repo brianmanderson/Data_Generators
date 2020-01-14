@@ -125,8 +125,8 @@ class image_loader(object):
         annotations_temp = annotations_temp[:, :, :, 0]
         return images_temp, annotations_temp
     def load_image(self, batch_size=0, image_names=None):
-        images, annotations = np.ones([batch_size, self.image_size, self.image_size],dtype='float32')*-1000, \
-                              np.zeros([batch_size, self.image_size, self.image_size],dtype='int8')
+        images_dict = {}
+        annotations_dict = {}
         temp_blank = lambda i: np.zeros([self.image_size, self.image_size, i.shape[-1] + 1])
         add = 0
         start = 0
@@ -172,7 +172,7 @@ class image_loader(object):
                 if os.path.exists(new_file):
                     start = image_names.index(new_file)
                     finish = min([int(start+batch_size),len(image_names)])
-        k = None
+        wanted_names = []
         make_changes = True
         for index, i in enumerate(range(start,finish)):
             if i < 0 or i > len(image_names):
@@ -211,16 +211,12 @@ class image_loader(object):
                         annotations_temp = annotations_temp[None,...]
                     images_temp, annotations_temp = self.convert_image_size(images_temp, annotations_temp,
                                                                             self.image_size)
-                if len(annotations_temp.shape) > 3 and annotations_temp.shape[-1] != annotations_temp.shape[-2]:
-                    if k is None:
-                        k = temp_blank(annotations_temp)
-                    k[..., 1:] = annotations_temp
-                    annotations_temp = np.argmax(k, axis=-1)
                 self.image_dictionary[image_names[i]] = [images_temp.astype('float32'), annotations_temp]
-            else:
-                images_temp, annotations_temp = self.image_dictionary[image_names[i]]
-            images[index] = np.squeeze(images_temp)
-            annotations[index] = np.squeeze(annotations_temp)
+            wanted_names.append(image_names[i])
+        images, annotations = np.ones((batch_size,) + images_temp.shape[1:],dtype='float32')*-1000, \
+                              np.zeros((batch_size,) + annotations_temp.shape[1:],dtype='int8')
+        for i, key in enumerate(wanted_names):
+            images[i],annotations[i] = self.image_dictionary[key]
         for image_processors in self.image_processors:
             images, annotations = image_processors.post_load_process(images, annotations)
 
