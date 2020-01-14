@@ -39,30 +39,25 @@ class Image_Processor(object):
 
 
 class Fuzzy_Segment_Liver_Lobes(Image_Processor):
-    def __init__(self, fuzzy_margin=10, variable_range=False, spacing=(1,1,5)):
+    def __init__(self, variation=None, spacing=(1,1,5)):
         '''
-        :param fuzzy_margin: margin to expand region, mm
-        :param variable_range: Want this range to vary?
+        :param variation: margin to expand region, mm. np.arange(start=0, stop=1, step=1)
         :param spacing: Spacing of images, assumes this is constance
         '''
-        self.fuzzy_margin = fuzzy_margin
-        self.variable_range = variable_range
+        self.variation = variation
         self.spacing = spacing
         self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
 
-    def make_fuzzy_label(self, annotation):
+    def make_fuzzy_label(self, annotation, variation):
         distance_map = np.zeros(annotation.shape)
-        value = self.fuzzy_margin
-        if self.variable_range:
-            value = np.random.randint(self.fuzzy_margin)
         for i in range(1, annotation.shape[-1]):
             temp_annotation = annotation[0, ..., i].astype('int')
             distance_map[0, ..., i] = self.Fill_Missing_Segments_Class.run_distance_map(temp_annotation,
                                                                                         spacing=self.spacing)
         distance_map[distance_map > 0] = 0
         distance_map = np.abs(distance_map)
-        distance_map[distance_map > value] = value  # Anything greater than 10 mm away set to 0
-        distance_map = 1 - distance_map / value
+        distance_map[distance_map > variation] = variation  # Anything greater than 10 mm away set to 0
+        distance_map = 1 - distance_map / variation
         distance_map[annotation[..., 0] == 1] = 0
         distance_map[..., 0] = annotation[..., 0]
         total = np.sum(distance_map, axis=-1)
@@ -75,7 +70,9 @@ class Fuzzy_Segment_Liver_Lobes(Image_Processor):
         :param annotations:
         :return:
         '''
-        annotations = self.make_fuzzy_label(annotations)
+        if self.variation is not None:
+            variation = self.variation[np.random.randint(len(self.variation))]
+            annotations = self.make_fuzzy_label(annotations, variation)
         return images, annotations
 
 class Ensure_Image_Proportions(Image_Processor):
