@@ -213,6 +213,7 @@ class image_loader(object):
                                                                             self.image_size)
                 self.image_dictionary[image_names[i]] = [images_temp.astype('float32'), annotations_temp]
             wanted_names.append(image_names[i])
+        images_temp, annotations_temp = self.image_dictionary[wanted_names[0]]
         images, annotations = np.ones((batch_size,) + images_temp.shape[1:],dtype='float32')*-1000, \
                               np.zeros((batch_size,) + annotations_temp.shape[1:],dtype='int8')
         for i, key in enumerate(wanted_names):
