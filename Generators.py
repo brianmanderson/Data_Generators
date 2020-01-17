@@ -1349,7 +1349,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
 
 class Image_Clipping_and_Padding(Sequence):
     def __init__(self, layers_dict, generator, return_mask=False, liver_box=False, mask_image=False,
-                 bounding_box_expansion=(5,10,10), threshold_value=-3.55):
+                 bounding_box_expansion=(5,10,10), threshold_value=-3.55, remove_liver_layer=False):
         '''
         :param layers_dict: Dictionary of layers for model, Layer_0, Layer_1, Base, etc.
         :param generator: a data generator
@@ -1359,6 +1359,7 @@ class Image_Clipping_and_Padding(Sequence):
         :param bounding_box_expansion: z, x, y expansions for bounding box
         '''
         self.bounding_box_expansion = bounding_box_expansion
+        self.remove_liver_layer = remove_liver_layer
         self.mask_image = mask_image
         self.patient_dict = {}
         self.liver_box = liver_box
@@ -1409,6 +1410,8 @@ class Image_Clipping_and_Padding(Sequence):
         out_annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = y[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
         if self.mask_image:
             out_images[out_annotations[...,0] == 1] = self.threshold_value
+        if self.remove_liver_layer:
+            out_annotations = out_annotations[...,(0,2)]
         if self.return_mask:
             mask = np.sum(out_annotations[...,1:],axis=-1)[...,None]
             mask = np.repeat(mask,out_annotations.shape[-1],axis=-1)
