@@ -494,30 +494,28 @@ class Data_Set_Reader(image_loader):
 
 class Train_Data_Generator2D(Sequence):
     def __init__(self, image_size=512, batch_size=5, perturbations=None, data_paths=None,clip=0,expansion=0,
-                 whole_patient=False, shuffle=False, flatten=False, noise=0.0, normalize_to_255=False,z_images=16,auto_normalize=False,
-                 all_for_one=False, three_channel=True, using_perturb_engine=False,on_VGG=False,normalize_to_value=None,
-                 resize_class=None,add_filename_extension=True, is_test_set=False, reduced_interest=False, mean_val=0, std_val=1):
+                 whole_patient=False, shuffle=False, flatten=False, noise=None,z_images=16,auto_normalize=False,
+                 all_for_one=False, three_channel=True, on_VGG=False,normalize_to_value=None,
+                 resize_class=None,add_filename_extension=True, is_test_set=False, reduced_interest=False,
+                 mean_val=None, std_val=None, image_processors=None):
+        if mean_val is not None or std_val is not None:
+            raise KeyError('Use Normalize_Images in the Image_Processors module instead of mean_val or std_val!')
+        if noise is not None:
+            raise KeyError('Use Add_Noise_To_Images in the Image_Processors module instead of noise!')
         self.z_images = z_images
         self.auto_normalize = auto_normalize
         self.max_images = np.inf
         self.normalize_to_value = normalize_to_value
         self.reduced_interest = reduced_interest
         self.resize_class = resize_class
-        self.using_perturb_engine = using_perturb_engine
         if type(clip) == int:
             clip = [clip for _ in range(4)]
         self.clip = clip
-        self.noise = noise
         self.flatten = flatten
         self.shuffle = shuffle
         self.all_for_one = all_for_one
         self.on_VGG = on_VGG
         extension = 'Single_Images3D'
-        self.mean_val = mean_val
-        self.std_val = std_val
-        self.normalize_to_255 = normalize_to_255
-        if self.using_perturb_engine:
-            extension += '\\Perturbations'
         self.image_size = image_size
         self.batch_size = batch_size
         self.perturbations = perturbations
@@ -532,7 +530,7 @@ class Train_Data_Generator2D(Sequence):
         self.train_dataset_reader = Data_Set_Reader(perturbations=self.perturbations,verbose=False,
                                                     image_size=image_size,three_channel=three_channel,
                                                     by_patient=whole_patient,resize_class=resize_class, is_test_set=is_test_set,
-                                                    shuffle_images=shuffle)
+                                                    shuffle_images=shuffle,image_processors=image_processors)
         self.get_image_lists()
 
     def get_image_lists(self):
@@ -585,19 +583,6 @@ class Train_Data_Generator2D(Sequence):
             data = data[int(ten_percent * 5):]
             self.mean_val = np.mean(data)
             self.std_val = np.std(data)
-        if self.mean_val != 0 or self.std_val != 1:
-            train_images = (train_images-self.mean_val)/self.std_val
-            if self.noise != 0:
-                train_images += self.noise * np.random.normal(loc=0.0, scale=1.0, size=train_images.shape)
-            train_images[train_images>3.55] = 3.55
-            train_images[train_images<-3.55] = -3.55 # 6 sigma
-            if self.normalize_to_255:
-                train_images = (train_images + 3.55)/(3.55*2)
-                train_images *= 255
-                train_images[train_images<0] = 0
-                train_images[train_images>255] = 255
-            if self.normalize_to_value:
-                train_images *= self.normalize_to_value
         if max(self.clip) > 0:
             if len(train_images.shape) == 5:
                 train_images, annotations = train_images[:,:,self.clip[0]:-self.clip[2],self.clip[1]:-self.clip[3],:], \
@@ -617,6 +602,7 @@ class Train_Data_Generator2D(Sequence):
 
     def on_epoch_end(self):
         self.get_image_lists()
+
 
 def get_bounding_box_indexes(annotation):
     '''
@@ -641,6 +627,7 @@ def get_bounding_box_indexes(annotation):
     min_c_s, max_c_s = indexes[0], indexes[-1]
     return min_z_s, int(max_z_s + 1), min_r_s, int(max_r_s + 1), min_c_s, int(max_c_s + 1)
 
+
 def pad_images(images,annotations,output_size=None,value=0):
     if not output_size:
         print('did not provide a desired size')
@@ -658,6 +645,7 @@ def pad_images(images,annotations,output_size=None,value=0):
         images, annotations = np.pad(images, final_pad, 'constant', constant_values=(value)), \
                         np.pad(annotations, final_pad, 'constant', constant_values=(0))
     return images, annotations
+
 
 def pull_cube_from_image(images, annotation, desired_size=(16,32,32), samples=10):
     output_images = np.ones([samples,desired_size[0],desired_size[1],desired_size[2],1])*np.min(images)
@@ -1528,6 +1516,7 @@ class Generator_From_Predictions(Sequence):
     def on_epoch_end(self):
         self.generator.on_epoch_end()
 
+
 class Predict_From_Trained_Model(object):
     def __init__(self,model_path,Bilinear_model=None): #gpu=0,graph1=Graph(),session1=Session(config=ConfigProto(log_device_placement=False)),
         print('loaded vgg model ' + model_path)
@@ -1536,6 +1525,7 @@ class Predict_From_Trained_Model(object):
 
     def predict(self,images):
         return self.vgg_model_base.predict(images)
+
 
 class Post_Processing(Sequence):
     def __init__(self, generator, w_liver_on_images=False, liver_masked=False):
@@ -1560,39 +1550,7 @@ class Post_Processing(Sequence):
     def on_epoch_end(self):
         self.generator.on_epoch_end()
         return None
-# class Predict_From_Trained_Model(object):
-#     def __init__(self,model_path,Bilinear_model=None,gpu=0): #gpu=0,graph1=Graph(),session1=Session(config=ConfigProto(log_device_placement=False)),
-#         print('loaded vgg model ' + model_path)
-#         import tensorflow as tf
-#         G = get_available_gpus()
-#         if len(G) == 1:
-#             gpu = 0
-#         gpus = tf.config.experimental.list_physical_devices('GPU')
-#         print(gpus)
-#         self.graph = tf.Graph()
-#         # Restrict TensorFlow to only use the first GPU
-#         for index in range(len(gpus)):
-#             if gpus[index].name.find(str(gpu)) != -1:
-#                 print('Set GPU to: ' + gpus[index].name)
-#                 tf.config.experimental.set_visible_devices(gpus[index], 'GPU')
-#                 break
-#         tf.debugging.set_log_device_placement(True)
-#         self.gpu = gpu
-#         self.device = tf.device('/GPU:' + str(self.gpu))
-#         with self.device:
-#             with self.graph.as_default():
-#                 gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
-#                 self.sess = tf.compat.v1.Session(
-#                     config=tf.compat.v1.ConfigProto(gpu_options=gpu_options, log_device_placement=False))
-#                 with self.sess.as_default():
-#                     print('loading VGG Pretrained')
-#                     self.vgg_model_base = load_model(model_path, custom_objects={'BilinearUpsampling':Bilinear_model,'dice_coef_3D':dice_coef_3D})
-#                     print('finished loading')
-#
-#     def predict(self,images):
-#         with self.device:
-#             with self.graph.as_default():
-#                 with self.sess.as_default():
-#                     return self.vgg_model_base.predict(images)
+
+
 if __name__ == '__main__':
     xxx = 1
