@@ -158,17 +158,22 @@ class Normalize_Images(Image_Processor):
 
 
 class Threshold_Images(Image_Processor):
-    def __init__(self, lower_bound=-np.inf, upper_bound=np.inf):
+    def __init__(self, lower_bound=-np.inf, upper_bound=np.inf, inverse_image=False):
         '''
         :param lower_bound: Lower bound to threshold images, normally -3.55 if Normalize_Images is used previously
         :param upper_bound: Upper bound to threshold images, normally 3.55 if Normalize_Images is used previously
+        :param inverse_image: Should the image be inversed after threshold?
         '''
         self.lower = lower_bound
         self.upper = upper_bound
+        self.inverse_image = inverse_image
 
     def post_load_process(self, images, annotations):
         images[images<self.lower] = self.lower
         images[images>self.upper] = self.upper
+        if self.inverse_image and self.lower != -np.inf and self.upper != np.inf:
+            images = images - self.lower
+            images = self.upper - images
         return images, annotations
 
 
