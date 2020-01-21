@@ -57,8 +57,7 @@ def remove_non_liver(annotations, threshold=0.5, volume_threshold=9999999):
 
 
 class image_loader(object):
-    def __init__(self,image_size=512,perturbations=None, three_channel=False, by_patient=False,
-                 resize_class=None, random_start=True, final_steps=None, all_images=False, save_and_reload=True,
+    def __init__(self,by_patient=False, random_start=True, final_steps=None, all_images=False, save_and_reload=True,
                  image_processors=None):
         if image_processors is None:
             image_processors = []
@@ -66,65 +65,11 @@ class image_loader(object):
         self.save_and_reload = save_and_reload
         self.patient_dict_indexes = {}
         self.image_dictionary = {}
-        self.resize_class = resize_class
         self.random_start = random_start
         self.by_patient = by_patient
-        self.image_size = image_size
-        if perturbations:
-            raise ValueError('Please move to using Image_Processor classes instead')
-        self.perturbations = perturbations
-        self.three_channel = three_channel
         self.final_steps = final_steps
         self.all_images = all_images
 
-    def convert_image_size(self, images, annotations, image_size):
-        dif_1 = (image_size - images.shape[1])
-        dif_2 = (image_size - images.shape[2])
-        if dif_1 > 0 and dif_2 > 0:
-            out_image_size = list(images.shape)
-            out_image_size[1] = image_size
-            out_image_size[2] = image_size
-            out_annotations_size = list(images.shape)
-            out_annotations_size[1] = image_size
-            out_annotations_size[2] = image_size
-            out_image = np.ones(out_image_size,dtype=images.dtype) * np.min(images)
-            out_annotations = np.zeros(out_annotations_size,dtype=annotations.dtype)
-            out_image[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2],...] = images
-            out_annotations[:, dif_1//2:dif_1//2 + images.shape[1], dif_2//2:dif_2//2 + images.shape[2],...] = annotations
-            return out_image, out_annotations
-        if dif_1 != 0:
-            if dif_1 > 0:
-                images = np.concatenate((images, images[:, :dif_1//2, ...]),axis=1)
-                images = np.concatenate((images[:, -dif_1//2:, ...], images),axis=1)
-                annotations = np.concatenate((annotations, annotations[:, :dif_1//2, ...]),axis=1)
-                annotations = np.concatenate((annotations[:, -dif_1//2:, ...], annotations),axis=1)
-            elif dif_1 < 0:
-                images = images[:, abs(dif_1)//2:-abs(dif_1//2), ...]
-                annotations = annotations[:, abs(dif_1)//2:-abs(dif_1//2), ...]
-        if dif_2 != 0:
-            if dif_2 > 0:
-                images = np.concatenate((images, images[:, :, :dif_2//2, ...]),axis=2)
-                images = np.concatenate((images[:, :, -dif_2//2:, ...], images),axis=2)
-                annotations = np.concatenate((annotations, annotations[:, :, :dif_2//2, ...]),axis=2)
-                annotations = np.concatenate((annotations[:, :, -dif_2//2:, ...], annotations),axis=2)
-            elif dif_2 < 0:
-                images = images[:, :, abs(dif_2)//2:-abs(dif_2//2), ...]
-                annotations = annotations[:, :, abs(dif_2)//2:-abs(dif_2//2), ...]
-        return images, annotations
-
-    def give_resized_images(self, images_temp, annotations_temp):
-        if images_temp.shape[0] != 1:
-            images_temp = np.expand_dims(images_temp, axis=0)
-            annotations_temp = np.expand_dims(annotations_temp, axis=0)
-        if images_temp.shape[-1] != 1:
-            images_temp = np.expand_dims(images_temp, axis=-1)
-            annotations_temp = np.expand_dims(annotations_temp, axis=-1)
-        images_temp, annotations_temp = self.convert_image_size(images_temp, annotations_temp, 512)
-        images_temp = self.resize_class.resize_images(images_temp)
-        annotations_temp = self.resize_class.resize_images(annotations_temp)
-        images_temp = images_temp[:, :, :, 0]
-        annotations_temp = annotations_temp[:, :, :, 0]
-        return images_temp, annotations_temp
     def load_image(self, batch_size=0, image_names=None):
         images_dict = {}
         annotations_dict = {}
@@ -198,19 +143,6 @@ class image_loader(object):
                         annotations_temp = sitk.GetArrayFromImage(annotations_temp_handle)[None,...]
                 for image_processors in self.image_processors:
                     images_temp, annotations_temp = image_processors.preload_single_image_process(images_temp, annotations_temp)
-                if (make_changes or not self.by_patient) or (images_temp.shape[1] != self.image_size or images_temp.shape[2] != self.image_size):
-                    if images_temp.shape[1] >= self.image_size*2 and images_temp.shape[2] >= self.image_size*2:
-                        if len(annotations_temp.shape) == 3:
-                            block = (2,2)
-                        else:
-                            block = (2,2,1)
-                        images_temp = block_reduce(images_temp[0,...], block, np.average).astype('float32')[None,...]
-                        annotations_temp = block_reduce(annotations_temp[0,...].astype('int'), block, np.max).astype('int')[None,...]
-                    if images_temp.shape[0] != 1:
-                        images_temp = images_temp[None,...]
-                        annotations_temp = annotations_temp[None,...]
-                    images_temp, annotations_temp = self.convert_image_size(images_temp, annotations_temp,
-                                                                            self.image_size)
                 self.image_dictionary[image_names[i]] = [images_temp.astype('float32'), annotations_temp]
             wanted_names.append(image_names[i])
         images_temp, annotations_temp = self.image_dictionary[wanted_names[0]]
@@ -221,10 +153,7 @@ class image_loader(object):
         for image_processors in self.image_processors:
             images, annotations = image_processors.post_load_process(images, annotations)
 
-        if self.three_channel and images.shape[-1] != 3:
-            images_stacked = np.stack([images,images,images],axis=-1)
-        else:
-            images_stacked = np.expand_dims(images,axis=-1)
+        images_stacked = np.expand_dims(images,axis=-1)
         images = images_stacked
 
         if images.shape[0] != batch_size:
@@ -317,34 +246,25 @@ class image_loader(object):
 
 
 class Data_Set_Reader(image_loader):
-    def __init__(self,path=None,image_size=512,perturbations=None, three_channel=False, by_patient=False,verbose=True,
-                 num_patients=1, resize_class=None,is_test_set=False, random_start=True,save_and_reload=True,
-                 expansion = 0,final_steps=None, shuffle_images=True, wanted_indexes=None,image_processors=None):
+    def __init__(self,path=None, by_patient=False,verbose=True,
+                 num_patients=1, is_test_set=False, random_start=True,save_and_reload=True,
+                 expansion = 0,shuffle_images=True, wanted_indexes=None,image_processors=None):
         '''
         :param path:
-        :param image_size:
-        :param perturbations:
-        :param three_channel:
         :param by_patient:
         :param verbose:
         :param num_patients:
-        :param resize_class:
         :param is_test_set:
         :param random_start:
         :param expansion:
-        :param final_steps:
         :param shuffle_images:
         :param wanted_indexes: a tuple of indexes wanted (2) will pull disease only if 1 is liver
         '''
-        super().__init__(image_size=image_size,perturbations=perturbations, three_channel=three_channel,
-                         by_patient=by_patient,resize_class=resize_class, random_start=random_start,
-                         final_steps=final_steps, all_images=is_test_set, save_and_reload=save_and_reload,
-                         image_processors=image_processors)
+        super().__init__(by_patient=by_patient, random_start=random_start,all_images=is_test_set,
+                         save_and_reload=save_and_reload, image_processors=image_processors)
         self.wanted_indexes = wanted_indexes
         self.shuffle_images = shuffle_images
         self.expansion = expansion
-        if resize_class:
-            self.resize_class = resize_class
         self.start_stop_dict = {}
         self.num_patients = num_patients
         self.patient_dict = {}
@@ -493,32 +413,21 @@ class Data_Set_Reader(image_loader):
 
 
 class Train_Data_Generator2D(Sequence):
-    def __init__(self, image_size=512, batch_size=5, perturbations=None, data_paths=None,clip=0,expansion=0,
-                 whole_patient=False, shuffle=False, flatten=False, noise=None,z_images=16,auto_normalize=False,
-                 all_for_one=False, three_channel=True, on_VGG=False,normalize_to_value=None,
-                 resize_class=None, is_test_set=False, reduced_interest=False,
-                 mean_val=None, std_val=None, image_processors=None):
+    def __init__(self, image_size=512, batch_size=5, data_paths=None,expansion=0,whole_patient=False, shuffle=False,
+                 noise=None,z_images=16, all_for_one=False, on_VGG=False, is_test_set=False, mean_val=None,
+                 std_val=None, image_processors=None):
         if mean_val is not None or std_val is not None:
             raise KeyError('Use Normalize_Images in the Image_Processors module instead of mean_val or std_val!')
         if noise is not None:
             raise KeyError('Use Add_Noise_To_Images in the Image_Processors module instead of noise!')
         self.z_images = z_images
-        self.auto_normalize = auto_normalize
         self.max_images = np.inf
-        self.normalize_to_value = normalize_to_value
-        self.reduced_interest = reduced_interest
-        self.resize_class = resize_class
-        if type(clip) == int:
-            clip = [clip for _ in range(4)]
-        self.clip = clip
-        self.flatten = flatten
         self.shuffle = shuffle
         self.all_for_one = all_for_one
         self.on_VGG = on_VGG
         extension = 'Single_Images3D'
         self.image_size = image_size
         self.batch_size = batch_size
-        self.perturbations = perturbations
         self.image_list = []
         models = {}
         for path in data_paths:
@@ -527,9 +436,7 @@ class Train_Data_Generator2D(Sequence):
             models[path] = Data_Set_Reader(shuffle_images=shuffle,expansion=expansion,
                                            path=path, by_patient=whole_patient, is_test_set=is_test_set)
         self.training_models = models
-        self.train_dataset_reader = Data_Set_Reader(perturbations=self.perturbations,verbose=False,
-                                                    image_size=image_size,three_channel=three_channel,
-                                                    by_patient=whole_patient,resize_class=resize_class, is_test_set=is_test_set,
+        self.train_dataset_reader = Data_Set_Reader(verbose=False,by_patient=whole_patient,is_test_set=is_test_set,
                                                     shuffle_images=shuffle,image_processors=image_processors)
         self.get_image_lists()
 
