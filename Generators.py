@@ -427,6 +427,8 @@ class Train_Data_Generator2D(Sequence):
         self.batch_size = batch_size
         self.image_list = []
         models = {}
+        if type(data_paths) is not list:
+            data_paths = [data_paths]
         for path in data_paths:
             if path.find(extension) == -1 and os.path.exists(os.path.join(path,extension)):
                 path = os.path.join(path,extension)
@@ -988,6 +990,8 @@ class Train_Data_Generator_class(Sequence):
         self.whole_patient = whole_patient
         self.is_auto_encoder = False # This can change in sub classes
         self.wanted_indexes = wanted_indexes
+        if type(data_paths) is not list:
+            data_paths = [data_paths]
         self.train_dataset_reader = Data_Set_Reader(by_patient=whole_patient,image_processors=image_processors,
                                                     num_patients=num_patients, is_test_set=is_test_set,
                                                     expansion=expansion,save_and_reload=save_and_reload,
