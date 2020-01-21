@@ -9,6 +9,7 @@ from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
 
 '''
 Description of code
+Fuzzy_Segment_Liver_Lobes(variation, spacing): allow from some 'fuzzy' variation in annotations
 Ensure_Image_Proportions(image_size-row, image_size_col): ensures images are proper proportions
 Normalize_Images(mean_val, std_val): Normalize images
 Threshold_Images(lower_bound, upper_bound): threshold, normally after normalizing, recommended -3.55 to +3.55
@@ -32,8 +33,9 @@ class Image_Processor(object):
 
     def post_load_process(self, images, annotations):
         '''
-        :param images: Images set to values of 0 to max - min. This is done
-        :param annotations:
+        This is for image processes which will vary between each load, for example, adding noise or perturbations
+        :param image: Some image of shape [n_row, m_col]
+        :param annotation: Some image of shape [n_row, m_col]
         :return:
         '''
         return images, annotations
