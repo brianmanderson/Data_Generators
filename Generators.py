@@ -1349,7 +1349,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
 
 class Image_Clipping_and_Padding(Sequence):
     def __init__(self, layers_dict, generator, return_mask=False, liver_box=False, mask_image=False,
-                 bounding_box_expansion=(5,10,10), threshold_value=-3.55, remove_liver_layer=False):
+                 bounding_box_expansion=(5,10,10), threshold_value=None, remove_liver_layer=False):
         '''
         :param layers_dict: Dictionary of layers for model, Layer_0, Layer_1, Base, etc.
         :param generator: a data generator
@@ -1403,23 +1403,27 @@ class Image_Clipping_and_Padding(Sequence):
                                                 self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
                                                 self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
         min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
-        out_images = np.ones([1,min_images,min_rows,min_cols,x.shape[-1]],dtype=x.dtype)*np.min(x)
+        if self.threshold_value is None:
+            threshold_val = np.min(x)
+        else:
+            threshold_val = self.threshold_value
+        out_images = np.ones([1,min_images,min_rows,min_cols,x.shape[-1]],dtype=x.dtype)*threshold_val
         out_annotations = np.zeros([1, min_images, min_rows, min_cols, y.shape[-1]], dtype=y.dtype)
         out_annotations[..., 0] = 1
         out_images[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = x[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
         out_annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = y[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
         if self.mask_image:
             out_images[out_annotations[...,0] == 1] = self.threshold_value
-        if self.remove_liver_layer:
-            out_annotations = out_annotations[...,(0,2)]
         if self.return_mask:
             mask = np.sum(out_annotations[...,1:],axis=-1)[...,None]
+            if self.remove_liver_layer:
+                out_annotations = out_annotations[..., (0, 2)]
             mask = np.repeat(mask,out_annotations.shape[-1],axis=-1)
-            mask[...,0] = 1 - mask[...,0]
             sum_vals = np.zeros(mask.shape)
-            sum_vals[...,0] = mask[...,0]
-            mask[...,0] = 0
+            sum_vals[...,0] = 1 - mask[...,0]
             return [out_images,mask, sum_vals], out_annotations
+        if self.remove_liver_layer:
+            out_annotations = out_annotations[...,(0,2)]
         return out_images, out_annotations
 
     def __len__(self):
