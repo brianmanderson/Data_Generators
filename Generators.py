@@ -1418,7 +1418,7 @@ class Image_Clipping_and_Padding(Sequence):
             mask = np.sum(out_annotations[...,1:],axis=-1)[...,None]
             if self.remove_liver_layer:
                 out_annotations = out_annotations[..., (0, 2)]
-            out_annotations[...,0] = 1-mask
+            out_annotations[...,0] = 1-mask[...,0]
             mask = np.repeat(mask,out_annotations.shape[-1],axis=-1)
             sum_vals = np.zeros(mask.shape)
             sum_vals[...,0] = 1 - mask[...,0]
