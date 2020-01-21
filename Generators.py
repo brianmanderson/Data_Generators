@@ -71,8 +71,6 @@ class image_loader(object):
         self.all_images = all_images
 
     def load_image(self, batch_size=0, image_names=None):
-        images_dict = {}
-        annotations_dict = {}
         add = 0
         start = 0
         finish = len(image_names)
@@ -972,40 +970,29 @@ def get_bounding_box(train_images_out_base, train_annotations_out_base, include_
 
 class Train_Data_Generator_class(Sequence):
 
-    def __init__(self, image_size=512, perturbations=None, three_channel=True,whole_patient=True,wanted_indexes=None,
-                 data_paths=None, num_patients=1,is_test_set=False, expansion=0,shuffle=False, batch_size=1,
-                 all_for_one=False, save_and_reload=True,image_processors=None):
+    def __init__(self, whole_patient=True,wanted_indexes=None,data_paths=None, num_patients=1,is_test_set=False,
+                 expansion=0,shuffle=False, batch_size=1, all_for_one=False, save_and_reload=True,
+                 image_processors=None):
         '''
-        :param image_size: Image size
-        :param three_layer: make three layer
         :param whole_patient: want whole patient
         :param data_paths: data paths
-        :param only_valid:
         :param num_patients:
         :param is_test_set:
         :param expansion:
-        :param normalize:
-        :param center_mask:
-        :param final_steps:
-        :param save_and_load:
         '''
         self.image_processors = image_processors
         self.save_and_reload = save_and_reload
         self.max_patients = np.inf
-        self.image_size = image_size
         self.shuffle = shuffle
         self.batch_size = batch_size
         self.all_for_one = all_for_one
         self.whole_patient = whole_patient
         self.is_auto_encoder = False # This can change in sub classes
         self.wanted_indexes = wanted_indexes
-        self.three_channel = three_channel
-        self.train_dataset_reader = Data_Set_Reader(perturbations=perturbations,
-                                                    image_size=image_size, three_channel=self.three_channel,
-                                                    by_patient=whole_patient,image_processors=image_processors,
+        self.train_dataset_reader = Data_Set_Reader(by_patient=whole_patient,image_processors=image_processors,
                                                     num_patients=num_patients, is_test_set=is_test_set,
                                                     expansion=expansion,save_and_reload=save_and_reload,
-                                                    final_steps=None, verbose=False, wanted_indexes=wanted_indexes)
+                                                    verbose=False, wanted_indexes=wanted_indexes)
         self.training_models = self.get_training_models(data_paths,is_test_set,whole_patient,num_patients,expansion, wanted_indexes)
 
     def get_training_models(self, data_paths, is_test_set, whole_patient, num_patients, expansion, wanted_indexes):
@@ -1016,7 +1003,7 @@ class Train_Data_Generator_class(Sequence):
             if len(os.listdir(path)) == 0:
                 print('Nothing in data path:' + path)
             models[path] = Data_Set_Reader(
-                path=path, by_patient=whole_patient,  num_patients=num_patients,three_channel=self.three_channel,
+                path=path, by_patient=whole_patient,  num_patients=num_patients,
                 image_processors=self.image_processors,is_test_set=is_test_set, expansion=expansion,
                 wanted_indexes=wanted_indexes, save_and_reload=self.save_and_reload) #Always 1
             self.train_dataset_reader.patient_dict_indexes.update(models[path].patient_dict_indexes)
@@ -1043,13 +1030,6 @@ class Train_Data_Generator_class(Sequence):
                 for key in self.training_models.keys():
                     self.image_list.append(self.training_models[key].file_batches[i])
         self.train_dataset_reader.file_batches = self.image_list
-        # print(len(self.image_list))
-        # for i in self.image_list:
-        #     len_val = len(i)
-        #     print(len_val)
-        #     print('got here')
-        if self.is_auto_encoder:
-            self.train_dataset_reader_no_changes.file_batches = self.image_list
 
     def __getitem__(self,index):
         pass
@@ -1104,20 +1084,17 @@ class Train_Data_Generator_class(Sequence):
 
 class Train_Data_Generator3D(Train_Data_Generator_class):
 
-    def __init__(self, image_size=512, batch_size=1, perturbations=None, three_layer=True,whole_patient=True,verbose=False,
-                 flatten=False,noise=None,prediction_class=None,output_size = None,save_and_reload=True,
+    def __init__(self, batch_size=1, perturbations=None, whole_patient=True,verbose=False,
+                 noise=None,prediction_class=None,output_size = None,save_and_reload=True,
                  data_paths=None, shuffle=False, all_for_one=False, write_predictions = False,is_auto_encoder=False,
                  num_patients=1,is_test_set=False, expansion=0, clip=0,mean_val=None, std_val=None,auto_normalize=False,
                  max_image_size=999,skip_correction=False, normalize_to_value=None, wanted_indexes=None, z_images=32,
                  image_processors=None):
         '''
-        :param image_size:
         :param batch_size:
         :param perturbations:
-        :param three_layer:
         :param whole_patient:
         :param verbose:
-        :param flatten:
         :param prediction_class:
         :param output_size:
         :param data_paths:
@@ -1135,8 +1112,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         :param wanted_indexes:
         :param z_images:
         '''
-        super().__init__(image_size=image_size, perturbations=perturbations, three_channel=three_layer,
-                         whole_patient=whole_patient, save_and_reload=save_and_reload,
+        super().__init__(whole_patient=whole_patient, save_and_reload=save_and_reload,
                          data_paths=data_paths, num_patients=num_patients,is_test_set=is_test_set, expansion=expansion,
                          shuffle=shuffle, batch_size=batch_size, all_for_one=all_for_one, wanted_indexes=wanted_indexes,
                          image_processors=image_processors)
@@ -1164,7 +1140,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
             raise NameError('No training paths defined')
         self.all_for_one = all_for_one
         self.shuffle = shuffle
-        self.flatten = flatten
         self.batch_size = batch_size
         self.z_images = z_images
         if self.is_auto_encoder:
@@ -1187,30 +1162,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
                                                                                train_annotations_out,
                                                                                samples=self.output_size[0],
                                                                                desired_size=self.output_size[1:])
-            if self.auto_normalize:
-                # data = train_images_out[train_annotations_out[..., -2] == 1].flatten()
-                data = train_images_out.flatten()
-                data.sort()
-                abs_data = np.abs(data-np.max(data)*0.9)
-                top_ninety = np.min(np.where(abs_data==np.min(abs_data))[0])
-                data = data[:top_ninety]
-                abs_data = np.abs(data-np.max(data)*0.1)
-                bottom_ten = np.min(np.where(abs_data==np.min(abs_data))[0])
-                data = data[bottom_ten:]
-            if self.is_auto_encoder:
-                non_noisy_image = copy.deepcopy(train_images_out)
-                if self.normalize_to_value:
-                    train_images_out = (train_images_out - -3.55) / (2*3.55) * self.normalize_to_value
-                    # train_images_out[train_annotations_out[..., -1] == 0] = 0
-                    if self.is_auto_encoder:
-                        non_noisy_image = (non_noisy_image - -3.55) / (2*3.55) * self.normalize_to_value
-                        non_noisy_image[train_annotations_out[..., -1] == 0] = 0
-                        # non_noisy_image[train_annotations_out[..., -1] == 0] = 0 # Leave all pixels involved
-                        if self.flatten:
-                            train_images_out = train_images_out.reshape(train_images_out.shape[0],np.prod(train_images_out.shape[1:]))
-                            train_annotations_out = train_annotations_out.reshape(train_annotations_out.shape[0],
-                                                               np.prod(train_annotations_out.shape[1:]))
-
         else:
             train_images_out, train_annotations_out = train_images_full_size, train_annotations_full_size
         if max(self.clip) > 0:
