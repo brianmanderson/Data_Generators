@@ -1087,7 +1087,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
     def __init__(self, batch_size=1, perturbations=None, whole_patient=True,verbose=False,
                  noise=None,prediction_class=None,output_size = None,save_and_reload=True,
                  data_paths=None, shuffle=False, all_for_one=False, write_predictions = False,is_auto_encoder=False,
-                 num_patients=1,is_test_set=False, expansion=0, clip=0,mean_val=None, std_val=None,auto_normalize=False,
+                 num_patients=1,is_test_set=False, expansion=0, mean_val=None, std_val=None,auto_normalize=False,
                  max_image_size=999,skip_correction=False, normalize_to_value=None, wanted_indexes=None, z_images=32,
                  image_processors=None):
         '''
@@ -1133,9 +1133,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
             raise KeyError('Use Add_Noise_To_Images in the Image_Processors module instead of noise!')
         self.normalize_to_value = normalize_to_value
         self.skip_correction = skip_correction
-        if type(clip) == int:
-            clip = [clip for _ in range(4)]
-        self.clip = clip
         if not data_paths:
             raise NameError('No training paths defined')
         self.all_for_one = all_for_one
@@ -1148,30 +1145,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
 
     def __getitem__(self, index):
         non_noisy_image = None
-        train_images_full_size, train_annotations_full_size = self.train_dataset_reader.load_images(index,self.z_images)  # how many images to pull
-        if not self.skip_correction:
-            if len(train_images_full_size.shape) == 5:
-                train_images_out, train_annotations_out = np.empty(train_images_full_size.shape), np.empty(train_images_full_size.shape)
-                for i in range(train_images_full_size.shape[0]):
-                    train_images_out[i], train_annotations_out[i] = self.return_corrected_image(train_images_full_size[i,...],
-                                                                                                train_annotations_full_size[i, ...])
-            else:
-                train_images_out, train_annotations_out = self.return_corrected_image(train_images_full_size, train_annotations_full_size)
-            if self.output_size:
-                train_images_out, train_annotations_out = pull_cube_from_image(train_images_out,
-                                                                               train_annotations_out,
-                                                                               samples=self.output_size[0],
-                                                                               desired_size=self.output_size[1:])
-        else:
-            train_images_out, train_annotations_out = train_images_full_size, train_annotations_full_size
-        if max(self.clip) > 0:
-            if self.is_auto_encoder:
-                non_noisy_image = non_noisy_image[:, self.clip[0]:-self.clip[0], self.clip[1]:-self.clip[1],self.clip[2]:-self.clip[2], :]
-                train_annotations_out = train_annotations_out[:, self.clip[0]:-self.clip[0], self.clip[1]:-self.clip[1], self.clip[2]:-self.clip[2], :]
-        if self.is_auto_encoder:
-            if self.loaded_model:
-                train_images_out = self.loaded_model.predict([train_images_out, np.ones(train_annotations_out.shape[:-1])[...,None]])
-            return [train_images_out, train_annotations_out[...,-1][...,None]], non_noisy_image
+        train_images_out, train_annotations_out = self.train_dataset_reader.load_images(index,self.z_images)  # how many images to pull
         return train_images_out, train_annotations_out
 
 
