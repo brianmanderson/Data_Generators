@@ -171,9 +171,11 @@ class Threshold_Images(Image_Processor):
     def post_load_process(self, images, annotations):
         images[images<self.lower] = self.lower
         images[images>self.upper] = self.upper
-        if self.inverse_image and self.lower != -np.inf and self.upper != np.inf:
-            images = images - self.lower
-            images = self.upper - images
+        if self.inverse_image:
+            if self.upper != np.inf and self.lower != -np.inf:
+                images = (self.upper + self.lower) - images
+            else:
+                images = -1*images
         return images, annotations
 
 
