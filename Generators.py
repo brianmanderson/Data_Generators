@@ -411,7 +411,7 @@ class Data_Set_Reader(image_loader):
 
 
 class Train_Data_Generator2D(Sequence):
-    def __init__(self, image_size=512, batch_size=5, data_paths=None,expansion=0,whole_patient=False, shuffle=False,
+    def __init__(self, batch_size=5, data_paths=None,expansion=0,whole_patient=False, shuffle=False,
                  noise=None,z_images=16, all_for_one=False, on_VGG=False, is_test_set=False, mean_val=None,
                  std_val=None, image_processors=None):
         if mean_val is not None or std_val is not None:
@@ -424,7 +424,6 @@ class Train_Data_Generator2D(Sequence):
         self.all_for_one = all_for_one
         self.on_VGG = on_VGG
         extension = 'Single_Images3D'
-        self.image_size = image_size
         self.batch_size = batch_size
         self.image_list = []
         models = {}
