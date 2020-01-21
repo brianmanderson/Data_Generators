@@ -5,6 +5,7 @@ from skimage import morphology
 import os, glob, pickle, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))  #Add path to module
 import SimpleITK as sitk
+import numpy as np
 from Image_Processors import *
 
 
@@ -127,7 +128,6 @@ class image_loader(object):
     def load_image(self, batch_size=0, image_names=None):
         images_dict = {}
         annotations_dict = {}
-        temp_blank = lambda i: np.zeros([self.image_size, self.image_size, i.shape[-1] + 1])
         add = 0
         start = 0
         finish = len(image_names)
@@ -496,7 +496,7 @@ class Train_Data_Generator2D(Sequence):
     def __init__(self, image_size=512, batch_size=5, perturbations=None, data_paths=None,clip=0,expansion=0,
                  whole_patient=False, shuffle=False, flatten=False, noise=None,z_images=16,auto_normalize=False,
                  all_for_one=False, three_channel=True, on_VGG=False,normalize_to_value=None,
-                 resize_class=None,add_filename_extension=True, is_test_set=False, reduced_interest=False,
+                 resize_class=None, is_test_set=False, reduced_interest=False,
                  mean_val=None, std_val=None, image_processors=None):
         if mean_val is not None or std_val is not None:
             raise KeyError('Use Normalize_Images in the Image_Processors module instead of mean_val or std_val!')
@@ -522,10 +522,10 @@ class Train_Data_Generator2D(Sequence):
         self.image_list = []
         models = {}
         for path in data_paths:
-            if path.find(extension) == -1 and add_filename_extension:
+            if path.find(extension) == -1 and os.path.exists(os.path.join(path,extension)):
                 path = os.path.join(path,extension)
             models[path] = Data_Set_Reader(shuffle_images=shuffle,expansion=expansion,
-                path=path, by_patient=whole_patient, is_test_set=is_test_set)
+                                           path=path, by_patient=whole_patient, is_test_set=is_test_set)
         self.training_models = models
         self.train_dataset_reader = Data_Set_Reader(perturbations=self.perturbations,verbose=False,
                                                     image_size=image_size,three_channel=three_channel,
@@ -560,36 +560,6 @@ class Train_Data_Generator2D(Sequence):
 
     def __getitem__(self,index):
         train_images, annotations = self.train_dataset_reader.load_images(index, batch_size=self.batch_size) # wanting multi-patient batches, use the 3D model
-        # Center it about VGG 19
-        if self.reduced_interest:
-            for i in range(train_images.shape[-1]):
-                temp = train_images[:,:,:,i]
-                temp[annotations[:,:,:,0]==0] = 0
-                train_images[:,:,:,i] = temp
-            annotations[annotations == 3] = 0
-        if self.flatten:
-            class_weights_dict = {0:1,1:20}
-            class_weights = np.ones([annotations.shape[0],annotations.shape[1],annotations.shape[2]])
-            for i in range(annotations.shape[-1]):
-                class_weights[annotations[:,:,:,i] == 1] = class_weights_dict[i]
-            annotations = np.reshape(annotations,
-                                        [train_images.shape[0],self.image_size*self.image_size*annotations.shape[-1]])
-            class_weights = np.reshape(class_weights,[train_images.shape[0],self.image_size*self.image_size,1])
-            return train_images, annotations, class_weights
-        if self.auto_normalize:
-            data = train_images.flatten()
-            data.sort()
-            ten_percent = int(len(data) / 10)
-            data = data[int(ten_percent * 5):]
-            self.mean_val = np.mean(data)
-            self.std_val = np.std(data)
-        if max(self.clip) > 0:
-            if len(train_images.shape) == 5:
-                train_images, annotations = train_images[:,:,self.clip[0]:-self.clip[2],self.clip[1]:-self.clip[3],:], \
-                                            annotations[:,:,self.clip[0]:-self.clip[2],self.clip[1]:-self.clip[3],:]
-            else:
-                train_images, annotations = train_images[:, self.clip[0]:-self.clip[2],self.clip[1]:-self.clip[3], :], \
-                                            annotations[:,self.clip[0]:-self.clip[2],self.clip[1]:-self.clip[3], :]
         if self.on_VGG:
             train_images[:, :, :, 0] -= 123.68
             train_images[:, :, :, 1] -= 116.78
@@ -1137,7 +1107,7 @@ class Train_Data_Generator_class(Sequence):
             if path.find('Single_Images3D') == -1:
                 path = os.path.join(path,'Single_Images3D') #Make them all 3D
             if len(os.listdir(path)) == 0:
-                print('Nothin in data path:' + path)
+                print('Nothing in data path:' + path)
             models[path] = Data_Set_Reader(
                 path=path, by_patient=whole_patient,  num_patients=num_patients,three_channel=self.three_channel,
                 image_processors=self.image_processors,is_test_set=is_test_set, expansion=expansion,
