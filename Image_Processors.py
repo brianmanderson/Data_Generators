@@ -10,6 +10,7 @@ from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
 '''
 Description of code
 Fuzzy_Segment_Liver_Lobes(variation, spacing): allow from some 'fuzzy' variation in annotations
+Expand_Dimensions(axis): expand a dimension, normally they're pulled as [z_images, rows, columns]
 Ensure_Image_Proportions(image_size-row, image_size_col): ensures images are proper proportions
 Normalize_Images(mean_val, std_val): Normalize images
 Threshold_Images(lower_bound, upper_bound): threshold, normally after normalizing, recommended -3.55 to +3.55
@@ -76,6 +77,56 @@ class Fuzzy_Segment_Liver_Lobes(Image_Processor):
         if self.variation is not None:
             variation = self.variation[np.random.randint(len(self.variation))]
             annotations = self.make_fuzzy_label(annotations, variation)
+        return images, annotations
+
+
+class Expand_Dimensions(Image_Processor):
+    def __init__(self, axis=-1, on_patient=False, on_images=True, on_annotations=False):
+        '''
+        :param axis: axis to expand
+        :param on_patient: expand on a 3D stack of images
+        :param on_images: expand the axis on the images
+        :param on_annotations: expand the axis on the annotations
+        '''
+        self.axis = axis
+        self.on_patient = on_patient
+        self.on_images = on_images
+        self.on_annotations = on_annotations
+
+    def preload_single_image_process(self, image, annotation):
+        if self.on_images:
+            image = np.expand_dims(image,axis=self.axis)
+        if self.on_annotations:
+            annotation = np.expand_dims(annotation,axis=self.axis)
+        return image, annotation
+
+    def post_load_process(self, images, annotations):
+        if self.on_patient:
+            if self.on_images:
+                images = np.expand_dims(images,axis=self.axis)
+            if self.on_annotations:
+                annotations = np.expand_dims(annotations,axis=self.axis)
+        return images, annotations
+
+
+class Repeat_Channel(Image_Processor):
+    def __init__(self, axis=-1, repeats=3, on_images=True, on_annotations=False):
+        '''
+        :param axis: axis to expand
+        :param repeats: number of repeats
+        :param on_images: expand the axis on the images
+        :param on_annotations: expand the axis on the annotations
+        '''
+        self.axis = axis
+        self.repeats = repeats
+        self.on_images = on_images
+        self.on_annotations = on_annotations
+
+    def post_load_process(self, images, annotations):
+        if self.on_images:
+            images = np.repeat(images, self.repeats, axis=self.axis)
+        if self.on_annotations:
+            annotations = np.repeat(annotations, self.repeats, axis=self.axis)
         return images, annotations
 
 

@@ -116,7 +116,6 @@ class image_loader(object):
                     start = image_names.index(new_file)
                     finish = min([int(start+batch_size),len(image_names)])
         wanted_names = []
-        make_changes = True
         for index, i in enumerate(range(start,finish)):
             if i < 0 or i > len(image_names):
                 print('start:' + str(start) + 'total images: ' + str(len(image_names)) + '_i:' + str(i))
@@ -141,6 +140,7 @@ class image_loader(object):
                         annotations_temp = sitk.GetArrayFromImage(annotations_temp_handle)[None,...]
                 for image_processors in self.image_processors:
                     images_temp, annotations_temp = image_processors.preload_single_image_process(images_temp, annotations_temp)
+                images_temp = images_temp[...,None]
                 self.image_dictionary[image_names[i]] = [images_temp.astype('float32'), annotations_temp]
             wanted_names.append(image_names[i])
         images_temp, annotations_temp = self.image_dictionary[wanted_names[0]]
@@ -150,36 +150,6 @@ class image_loader(object):
             images[i],annotations[i] = self.image_dictionary[key]
         for image_processors in self.image_processors:
             images, annotations = image_processors.post_load_process(images, annotations)
-
-        images_stacked = np.expand_dims(images,axis=-1)
-        images = images_stacked
-
-        if images.shape[0] != batch_size:
-            i = 0
-            while images.shape[0] < batch_size:
-                if i == 0:
-                    images = np.concatenate((images, np.expand_dims(images[-1, :, :, :], axis=0)),
-                                                  axis=0)
-                    annotations = np.concatenate(
-                        (annotations, np.expand_dims(annotations[-1, :, :], axis=0)), axis=0)
-                    i = 1
-                elif i == 1:
-                    images = np.concatenate((np.expand_dims(images[0, :, :, :], axis=0), images),
-                                                  axis=0)
-                    annotations = np.concatenate(
-                        (np.expand_dims(annotations[0, :, :], axis=0), annotations), axis=0)
-                    i = 0
-            while images.shape[0] > batch_size:
-                if i == 0:
-                    images = images[1:, :, :, :]
-                    annotations = annotations[1:, :, :]
-                    i = 1
-                elif i == 1:
-                    images = images[:-1, :, :, :]
-                    annotations = annotations[:-1, :, :]
-                    i = 0
-        if self.final_steps:
-            images, annotations = self.final_steps(images,annotations)
         return images, annotations
 
     def get_bounding_box_indexes(self, annotation):
@@ -224,9 +194,8 @@ class image_loader(object):
             if self.all_images:
                 batch_size = len(image_names)
             images_out, annotations_out = self.load_image(batch_size=batch_size, image_names=image_names)
-            if len(image_names_all) > 1:
-                images_out = np.expand_dims(images_out,axis=0)
-                annotations_out = np.expand_dims(annotations_out,axis=0)
+            images_out = np.expand_dims(images_out,axis=0)
+            annotations_out = np.expand_dims(annotations_out,axis=0)
             for i in range(1,len(image_names_all)):
                 image_names = image_names_all[i]
                 images, annotations = self.load_image(batch_size=batch_size, image_names=image_names)
@@ -1043,46 +1012,6 @@ class Train_Data_Generator_class(Sequence):
 
     def on_epoch_end(self):
         self.get_image_lists()
-
-    def return_corrected_image(self, train_images_full_size, train_annotations):
-        if self.image_size != train_images_full_size.shape[1]:
-            train_images = block_reduce(train_images_full_size, (1, 2, 2, 1), np.average)
-        else:
-            train_images = train_images_full_size
-
-        under_review = True
-        if train_images.shape[0] != self.batch_size and not under_review:
-            i = 0
-            while train_images.shape[0] < self.batch_size:
-                if i == 0:
-                    train_images = np.concatenate((train_images, np.expand_dims(train_images[0, :, :, :], axis=0)),
-                                                  axis=0)
-                    train_annotations = np.concatenate(
-                        (train_annotations, np.expand_dims(train_annotations[0, :, :, :], axis=0)), axis=0)
-                    i = 1
-                elif i == 1:
-                    train_images = np.concatenate((np.expand_dims(train_images[-1, :, :, :], axis=0), train_images),
-                                                  axis=0)
-                    train_annotations = np.concatenate(
-                        (np.expand_dims(train_annotations[-1, :, :, :], axis=0), train_annotations), axis=0)
-                    i = 0
-            while train_images.shape[0] > self.batch_size:
-                if i == 0:
-                    train_images = train_images[1:, :, :, :]
-                    train_annotations = train_annotations[1:, :, :, :]
-                    i = 1
-                elif i == 1:
-                    train_images = train_images[:-1, :, :, :]
-                    train_annotations = train_annotations[:-1, :, :, :]
-                    i = 0
-        if np.max(train_annotations) == 1:
-            xxx = 1
-        if self.wanted_indexes:
-            train_annotations = train_annotations[...,self.wanted_indexes]
-        if self.whole_patient:
-            train_images = np.expand_dims(train_images, axis=0)
-            train_annotations = np.expand_dims(train_annotations, axis=0)
-        return train_images, train_annotations
 
 
 class Train_Data_Generator3D(Train_Data_Generator_class):
