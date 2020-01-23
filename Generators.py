@@ -69,6 +69,7 @@ class image_loader(object):
         self.by_patient = by_patient
         self.final_steps = final_steps
         self.all_images = all_images
+        self.preload_patient_dict = []
 
     def load_image(self, batch_size=0, image_names=None):
         add = 0
@@ -148,6 +149,12 @@ class image_loader(object):
                               np.zeros((batch_size,) + annotations_temp.shape[1:],dtype='int8')
         for i, key in enumerate(wanted_names):
             images[i],annotations[i] = self.image_dictionary[key]
+        if wanted_names[0] not in self.preload_patient_dict:
+            for image_processors in self.image_processors:
+                images, annotations = image_processors.pre_load_whole_image_process(images, annotations)
+            for i, key in enumerate(wanted_names):
+                self.image_dictionary[key] = images[i], annotations[i]
+            self.preload_patient_dict.append(wanted_names[0])
         for image_processors in self.image_processors:
             images, annotations = image_processors.post_load_process(images, annotations)
         return images, annotations
@@ -1019,7 +1026,7 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
     def __init__(self, batch_size=1, perturbations=None, whole_patient=True,verbose=False,
                  noise=None,prediction_class=None,output_size = None,save_and_reload=True,
                  data_paths=None, shuffle=False, all_for_one=False, write_predictions = False,is_auto_encoder=False,
-                 num_patients=1,is_test_set=False, expansion=0, mean_val=None, std_val=None,auto_normalize=False,
+                 num_patients=1,is_test_set=False, expansion=0, mean_val=None, std_val=None,
                  max_image_size=999,skip_correction=False, normalize_to_value=None, wanted_indexes=None, z_images=32,
                  image_processors=None):
         '''
@@ -1051,7 +1058,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         self.perturbations = perturbations
         self.is_test_set = is_test_set
         self.index_data = {}
-        self.auto_normalize = auto_normalize
         self.loaded_model = None
         self.output_size = output_size
         self.is_auto_encoder = is_auto_encoder
@@ -1076,7 +1082,6 @@ class Train_Data_Generator3D(Train_Data_Generator_class):
         self.get_image_lists()
 
     def __getitem__(self, index):
-        non_noisy_image = None
         train_images_out, train_annotations_out = self.train_dataset_reader.load_images(index,self.z_images)  # how many images to pull
         return train_images_out, train_annotations_out
 

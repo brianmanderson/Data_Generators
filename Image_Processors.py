@@ -21,6 +21,8 @@ Rotate_Images_2D_Processor(by_patient, image_size, variation): Randomly rotate i
 Shift_Images_Processor(by_patient, variation, positive_to_negative): Shift images by a certain variation in 2D plane
 Random_2D_Deformation_Processor(by_patient, image_size, variation): Randomly deform images in 2D plane
 '''
+
+
 class Image_Processor(object):
     def preload_single_image_process(self, image, annotation):
         '''
@@ -32,11 +34,20 @@ class Image_Processor(object):
         '''
         return image, annotation
 
+    def pre_load_whole_image_process(self, images, annotations):
+        '''
+        This is for image processes which will occur once on the entire 3D stack, only use if you're pulling a whole set
+        :param images: Some image of shape [n_row, m_col]
+        :param annotations: Some image of shape [n_row, m_col]
+        :return:
+        '''
+        return images, annotations
+
     def post_load_process(self, images, annotations):
         '''
         This is for image processes which will vary between each load, for example, adding noise or perturbations
-        :param image: Some image of shape [n_row, m_col]
-        :param annotation: Some image of shape [n_row, m_col]
+        :param images: Some image of shape [z_images, n_row, m_col]
+        :param annotations: Some image of shape [z_images, n_row, m_col]
         :return:
         '''
         return images, annotations
@@ -205,6 +216,27 @@ class Normalize_Images(Image_Processor):
 
     def preload_single_image_process(self, images, annotations):
         images = (images - self.mean_val)/self.std_val
+        return images, annotations
+
+
+class Normalize_to_Liver(Image_Processor):
+    def __init__(self):
+        '''
+        This is a little tricky... We only want to perform this task once, since it requires potentially large
+        computation time, but it also requires that all individual image slices already be loaded
+        '''
+        self.performed_task = False
+
+    def pre_load_whole_image_process(self, images, annotations):
+        if not self.performed_task:
+            liver = np.sum(annotations[..., 1:], axis=-1)
+            data = images[liver == 1].flatten()
+            data.sort()
+            top_75 = data[len(data)//4:]
+            mean_val = np.mean(top_75)
+            std_val = np.std(top_75)
+            images = (images - mean_val)/std_val
+            self.performed_task = True
         return images, annotations
 
 
