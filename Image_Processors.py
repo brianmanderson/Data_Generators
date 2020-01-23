@@ -225,18 +225,15 @@ class Normalize_to_Liver(Image_Processor):
         This is a little tricky... We only want to perform this task once, since it requires potentially large
         computation time, but it also requires that all individual image slices already be loaded
         '''
-        self.performed_task = False
 
     def pre_load_whole_image_process(self, images, annotations):
-        if not self.performed_task:
-            liver = np.sum(annotations[..., 1:], axis=-1)
-            data = images[liver == 1].flatten()
-            data.sort()
-            top_75 = data[len(data)//4:]
-            mean_val = np.mean(top_75)
-            std_val = np.std(top_75)
-            images = (images - mean_val)/std_val
-            self.performed_task = True
+        liver = np.sum(annotations[..., 1:], axis=-1)
+        data = images[liver == 1].flatten()
+        data.sort()
+        top_75 = data[len(data)//4:]
+        mean_val = np.mean(top_75)
+        std_val = np.std(top_75)
+        images = (images - mean_val)/std_val
         return images, annotations
 
 
