@@ -153,7 +153,7 @@ class image_loader(object):
             for image_processors in self.image_processors:
                 images, annotations = image_processors.pre_load_whole_image_process(images, annotations)
             for i, key in enumerate(wanted_names):
-                self.image_dictionary[key] = images[i], annotations[i]
+                self.image_dictionary[key] = images[i][None,...], annotations[i][None,...]
             self.preload_patient_dict.append(wanted_names[0])
         for image_processors in self.image_processors:
             images, annotations = image_processors.post_load_process(images, annotations)
