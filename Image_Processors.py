@@ -185,14 +185,12 @@ class Ensure_Image_Proportions(Image_Processor):
             image = image[None, ...]
             annotation = annotation[None, ...]
         if image.shape[1] != self.image_size_row or image.shape[2] != self.image_size_col:
-            if image.shape[1] >= self.image_size_row * 2 and image.shape[2] >= self.image_size_col * 2:
-                if len(annotation.shape) == 3:
-                    block = (2, 2)
-                else:
-                    block = (2, 2, 1)
+            block = (image.shape[1]//self.image_size_row,image.shape[2]//self.image_size_col)
+            block = np.max([block,(1,1)],axis=0)
+            if np.max(block) > 1:
+                block = tuple(block)
                 image = block_reduce(image[0, ...], block, np.average).astype('float32')[None, ...]
-                annotation = block_reduce(annotation[0, ...].astype('int'), block, np.max).astype('int')[
-                    None, ...]
+                annotation = block_reduce(annotation[0, ...].astype('int'), block, np.max).astype('int')[None, ...]
             image, annotation = self.convert_image_size(image, annotation)
         return image, annotation
 
