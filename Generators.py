@@ -925,10 +925,10 @@ class Data_Generator_Class(Sequence):
         self.patient_dict = {}
         self.patient_dict_indexes = {}
         self.file_list = []
-        self.training_models = self.get_training_models(data_paths,whole_patient,expansion, wanted_indexes)
+        self.training_models = self.get_training_models(data_paths,expansion, wanted_indexes)
         self.get_image_lists()
 
-    def get_training_models(self, data_paths, whole_patient, expansion, wanted_indexes):
+    def get_training_models(self, data_paths, expansion, wanted_indexes):
         models = {}
         for path in data_paths:
             if path.find('Single_Images3D') == -1:
