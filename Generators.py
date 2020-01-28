@@ -1109,7 +1109,7 @@ class Image_Clipping_and_Padding(Sequence):
         for layer in layers_dict:
             if layer == 'Base':
                 continue
-            if 'Pooling' in layers_dict[layer]:
+            if 'Pooling' in layers_dict[layer] and 'Encoding' not in layers_dict[layer]['Pooling']:
                 pooling = layers_dict[layer]['Pooling']
             else:
                 pooling = [pool_base for _ in range(3)]
