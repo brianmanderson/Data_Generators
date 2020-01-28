@@ -9,6 +9,8 @@ from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
 
 '''
 Description of code
+Annotations_To_Categorical(num_classes): classes for annotations to be turned into
+Repeat_Channel(axis=-1, repeats=3, on_images=True, on_annotations=False)
 Fuzzy_Segment_Liver_Lobes(variation, spacing): allow from some 'fuzzy' variation in annotations
 Expand_Dimensions(axis): expand a dimension, normally they're pulled as [z_images, rows, columns]
 Ensure_Image_Proportions(image_size-row, image_size_col): ensures images are proper proportions
