@@ -328,6 +328,7 @@ class Train_Data_Generator2D(Sequence):
     def __init__(self, batch_size=5, data_paths=None,expansion=0,whole_patient=False, shuffle=False,
                  noise=None,z_images=16, all_for_one=False, on_VGG=False, is_test_set=False, mean_val=None,
                  std_val=None, image_processors=None):
+        KeyError('Use Data_Generator_Class, not 3D or 2D Model')
         if mean_val is not None or std_val is not None:
             raise KeyError('Use Normalize_Images in the Image_Processors module instead of mean_val or std_val!')
         if noise is not None:
@@ -883,20 +884,29 @@ def get_bounding_box(train_images_out_base, train_annotations_out_base, include_
         return min_z, max_z, min_row, max_row, min_col, max_col
 
 
-class Data_Generator_class(Sequence):
-    def __init__(self, whole_patient=False, by_patient=False, wanted_indexes=None,data_paths=None, num_patients=1,
+class Data_Generator_Class(Sequence):
+    def __init__(self, by_patient=False, whole_patient=False, wanted_indexes=None,data_paths=None, num_patients=1,
                  expansion=0,shuffle=False, batch_size=1, save_and_reload=True,
                  image_processors=None, split_data_evenly_from_paths=False, random_start=True):
         '''
-        :param whole_patient: want whole patient
-        :param data_paths: data paths
-        :param num_patients:
-        :param is_test_set:
-        :param expansion:
+        :param by_patient: (True/False), load by 3D patient or 2D slices
+        :param whole_patient: load entire patient?
+        :param wanted_indexes: tuple specifying desired indexes, can be left at None
+        :param data_paths: data paths to pull from
+        :param num_patients: if by_patient, how many patients to pull
+        :param expansion: how many slices to expand above and below positive annotations
+        :param shuffle: shuffle images/patients?
+        :param batch_size: number of z_images, if whole_patient this is overridden
+        :param save_and_reload: save in a dictionary, default True
+        :param image_processors: a list of data processors, see Image_Processors.py
+        :param split_data_evenly_from_paths: in beta
+        :param random_start: default, other options in beta
         '''
         self.random_start = random_start
         self.num_patients = num_patients
         self.split_data_evenly_from_paths = split_data_evenly_from_paths
+        if whole_patient:
+            by_patient = True
         self.by_patient = by_patient
         if image_processors is None:
             image_processors = []
@@ -1079,7 +1089,7 @@ class Data_Generator_class(Sequence):
         self.get_image_lists()
 
 
-class Train_Data_Generator3D(Data_Generator_class):
+class Train_Data_Generator3D(Data_Generator_Class):
 
     def __init__(self, batch_size=1, perturbations=None, whole_patient=True,verbose=False,
                  noise=None,prediction_class=None,output_size = None,save_and_reload=True,
@@ -1109,6 +1119,7 @@ class Train_Data_Generator3D(Data_Generator_class):
         :param wanted_indexes:
         :param z_images:
         '''
+        KeyError('Use Data_Generator_Class, not 3D or 2D Model')
         super().__init__(whole_patient=whole_patient, save_and_reload=save_and_reload,
                          data_paths=data_paths, num_patients=num_patients,is_test_set=is_test_set, expansion=expansion,
                          shuffle=shuffle, batch_size=batch_size, all_for_one=all_for_one, wanted_indexes=wanted_indexes,
