@@ -902,6 +902,8 @@ class Data_Generator_Class(Sequence):
         :param split_data_evenly_from_paths: in beta
         :param random_start: default, other options in beta
         '''
+        if by_patient_2D:
+            assert num_patients == 1, 'Specified that 2D image output is wanted, but num_patients is > 1'
         self.by_patient_2D = by_patient_2D
         self.random_start = random_start
         self.num_patients = num_patients
@@ -1074,8 +1076,6 @@ class Data_Generator_Class(Sequence):
                     images, annotations = self.load_image(batch_size=batch_size, image_names=image_names)
                     images_out = np.concatenate([images_out, np.expand_dims(images, axis=0)], axis=0)
                     annotations_out = np.concatenate([annotations_out, np.expand_dims(annotations, axis=0)], axis=0)
-            else:
-                assert len(image_names_all) == 1, 'Specified that 2D image output is wanted, but num_patients is > 1'
         else:
             image_names = self.file_batches[index]
             images_out, annotations_out = self.load_image(batch_size=batch_size, image_names=image_names)
