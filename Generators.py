@@ -887,7 +887,7 @@ def get_bounding_box(train_images_out_base, train_annotations_out_base, include_
 class Data_Generator_Class(Sequence):
     def __init__(self, by_patient=False, whole_patient=False, wanted_indexes=None,data_paths=None, num_patients=1,
                  expansion=0,shuffle=False, batch_size=1, save_and_reload=True,
-                 image_processors=None, split_data_evenly_from_paths=False, random_start=True):
+                 image_processors=None, split_data_evenly_from_paths=False, random_start=True, by_patient_2D=False):
         '''
         :param by_patient: (True/False), load by 3D patient or 2D slices
         :param whole_patient: load entire patient?
@@ -902,6 +902,9 @@ class Data_Generator_Class(Sequence):
         :param split_data_evenly_from_paths: in beta
         :param random_start: default, other options in beta
         '''
+        if by_patient_2D:
+            assert num_patients == 1, 'Specified that 2D image output is wanted, but num_patients is > 1'
+        self.by_patient_2D = by_patient_2D
         self.random_start = random_start
         self.num_patients = num_patients
         self.split_data_evenly_from_paths = split_data_evenly_from_paths
@@ -1065,13 +1068,14 @@ class Data_Generator_Class(Sequence):
             if self.whole_patient:
                 batch_size = len(image_names)
             images_out, annotations_out = self.load_image(batch_size=batch_size, image_names=image_names)
-            images_out = np.expand_dims(images_out,axis=0)
-            annotations_out = np.expand_dims(annotations_out,axis=0)
-            for i in range(1,len(image_names_all)):
-                image_names = image_names_all[i]
-                images, annotations = self.load_image(batch_size=batch_size, image_names=image_names)
-                images_out = np.concatenate([images_out,np.expand_dims(images,axis=0)],axis=0)
-                annotations_out = np.concatenate([annotations_out, np.expand_dims(annotations, axis=0)], axis=0)
+            if not self.by_patient_2D:
+                images_out = np.expand_dims(images_out,axis=0)
+                annotations_out = np.expand_dims(annotations_out,axis=0)
+                for i in range(1, len(image_names_all)):
+                    image_names = image_names_all[i]
+                    images, annotations = self.load_image(batch_size=batch_size, image_names=image_names)
+                    images_out = np.concatenate([images_out, np.expand_dims(images, axis=0)], axis=0)
+                    annotations_out = np.concatenate([annotations_out, np.expand_dims(annotations, axis=0)], axis=0)
         else:
             image_names = self.file_batches[index]
             images_out, annotations_out = self.load_image(batch_size=batch_size, image_names=image_names)
