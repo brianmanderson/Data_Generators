@@ -245,26 +245,39 @@ class Normalize_to_Liver(Image_Processor):
 
 
 class Threshold_Images(Image_Processor):
-    def __init__(self, lower_bound=-np.inf, upper_bound=np.inf, inverse_image=False):
+    def __init__(self, lower_bound=-np.inf, upper_bound=np.inf, inverse_image=False, post_load=True):
         '''
         :param lower_bound: Lower bound to threshold images, normally -3.55 if Normalize_Images is used previously
         :param upper_bound: Upper bound to threshold images, normally 3.55 if Normalize_Images is used previously
         :param inverse_image: Should the image be inversed after threshold?
+        :param post_load: should this be done each iteration? If False, gets slotted under pre_load_process
         '''
         self.lower = lower_bound
         self.upper = upper_bound
         self.inverse_image = inverse_image
+        self.post_load = post_load
 
     def post_load_process(self, images, annotations):
-        images[images<self.lower] = self.lower
-        images[images>self.upper] = self.upper
-        if self.inverse_image:
-            if self.upper != np.inf and self.lower != -np.inf:
-                images = (self.upper + self.lower) - images
-            else:
-                images = -1*images
+        if self.post_load:
+            images[images<self.lower] = self.lower
+            images[images>self.upper] = self.upper
+            if self.inverse_image:
+                if self.upper != np.inf and self.lower != -np.inf:
+                    images = (self.upper + self.lower) - images
+                else:
+                    images = -1*images
         return images, annotations
 
+    def preload_single_image_process(self, image, annotation):
+        if not self.post_load:
+            image[image<self.lower] = self.lower
+            image[image>self.upper] = self.upper
+            if self.inverse_image:
+                if self.upper != np.inf and self.lower != -np.inf:
+                    image = (self.upper + self.lower) - image
+                else:
+                    image = -1*image
+        return image, annotation
 
 class Add_Noise_To_Images(Image_Processor):
     def __init__(self, by_patient=False, variation=None):
