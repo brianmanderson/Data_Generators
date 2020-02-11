@@ -50,8 +50,6 @@ class image_loader(object):
             for i in self.files_in_reader:
                 np.random.shuffle(i)
         self.file_batches = []
-        for i in range(self.min_files):
-
         patient_list = list(self.patient_dict.keys())
         xxx = 1
         output = []
