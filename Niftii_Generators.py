@@ -1,10 +1,7 @@
-from keras.utils import Sequence, np_utils
-import keras.backend as K
-from Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image
-from keras.models import load_model
-from skimage import morphology
+from tensorflow.keras.utils import Sequence, to_categorical
+from .Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image
 from skimage.measure import block_reduce
-import cv2, os, copy, glob, pickle
+import cv2, os, copy, pickle
 import numpy as np
 from scipy.ndimage import interpolation
 import SimpleITK as sitk
@@ -618,7 +615,7 @@ class Train_Data_Generator2D(Sequence):
                 train_images[:,:,:,i] = temp
             annotations[annotations == 3] = 0
         if not self.using_perturb_engine:
-            annotations = np_utils.to_categorical(annotations,self.num_of_classes)
+            annotations = to_categorical(annotations,self.num_of_classes)
         if self.flatten:
             class_weights_dict = {0:1,1:20}
             class_weights = np.ones([annotations.shape[0],annotations.shape[1],annotations.shape[2]])

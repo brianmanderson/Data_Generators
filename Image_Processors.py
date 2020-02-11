@@ -1,11 +1,10 @@
 import numpy as np
 from scipy.ndimage import interpolation, filters
-from keras.utils import np_utils
+from tensorflow.keras.utils import to_categorical
 import cv2, math, copy, os, sys
 from skimage.measure import block_reduce
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))  #Add path to module
-from Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
-from Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
+from .Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
+from .Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
 
 '''
 Description of code
@@ -156,7 +155,7 @@ class Annotations_To_Categorical(Image_Processor):
         :param annotations:
         :return:
         '''
-        annotations = np_utils.to_categorical(annotations, self.num_of_classes)
+        annotations = to_categorical(annotations, self.num_of_classes)
         return images, annotations
 
 
