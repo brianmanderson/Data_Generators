@@ -1,12 +1,11 @@
-from keras.utils import Sequence, np_utils
-import keras.backend as K
-from keras.models import load_model
+from tensorflow.keras.utils import Sequence, to_categorical
+import tensorflow.keras.backend as K
+from tensorflow.keras.models import load_model
 from skimage import morphology
 import os, glob, pickle, sys, copy
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))  #Add path to module
 import SimpleITK as sitk
 import numpy as np
-from Image_Processors import *
+from .Image_Processors import *
 
 
 def get_available_gpus():
@@ -1284,7 +1283,7 @@ class Parotids_to_single_class(Sequence):
     def __getitem__(self, index):
         x, y = self.generator.__getitem__(index)
         y = np.sum(y[...,1:],axis=-1)
-        y = np_utils.to_categorical(y,2)
+        y = to_categorical(y,2)
         return x,y
 
     def __len__(self):
@@ -1365,7 +1364,7 @@ class Post_Processing(Sequence):
                 out_images[liver!=1] = np.min(out_images)
             else:
                 out_images = np.concatenate((out_images, liver[..., None]), axis=-1)
-        out_annotations = np_utils.to_categorical(out_annotations[...,1],2)
+        out_annotations = to_categorical(out_annotations[...,1],2)
         return out_images, out_annotations
 
     def __len__(self):
