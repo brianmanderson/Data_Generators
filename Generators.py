@@ -1230,7 +1230,7 @@ class Image_Clipping_and_Padding(Sequence):
             out_images[out_annotations[...,0] == 1] = self.threshold_value
         if self.return_mask:
             mask = np.sum(out_annotations[...,1:],axis=-1)[...,None]
-            if self.remove_liver_layer:
+            if self.remove_liver_layer:  # In future predictions we do not want to predict liver, so toss it out
                 out_annotations = out_annotations[..., (0, 2)]
                 out_annotations[...,0] = 1-np.sum(out_annotations[...,1:],axis=-1)
             mask = np.repeat(mask,out_annotations.shape[-1],axis=-1)
