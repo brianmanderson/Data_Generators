@@ -1,4 +1,5 @@
-from tensorflow.keras.utils import Sequence, to_categorical
+from tensorflow.python.keras.utils import Sequence
+from tensorflow.python.keras.utils.np_utils import to_categorical
 from .Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image
 from skimage.measure import block_reduce
 import cv2, os, copy, pickle

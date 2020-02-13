@@ -1,6 +1,6 @@
-from tensorflow.keras.utils import Sequence, to_categorical
-import tensorflow.keras.backend as K
-from tensorflow.keras.models import load_model
+from tensorflow.python.keras.utils import Sequence, to_categorical
+import tensorflow.python.keras.backend as K
+from tensorflow.python.keras.models import load_model
 from skimage import morphology
 import os, glob, pickle, sys, copy
 import SimpleITK as sitk

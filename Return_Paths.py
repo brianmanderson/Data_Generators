@@ -47,3 +47,17 @@ class Path_Return_Class(object):
             if not os.path.exists(i):
                 os.makedirs(i)
         return None
+
+
+def find_base_dir():
+    base_path = '.'
+    for _ in range(20):
+        if 'Morfeus' in os.listdir(base_path):
+            break
+        else:
+            base_path = os.path.join(base_path,'..')
+    return base_path
+
+
+if __name__ == '__main__':
+    pass
