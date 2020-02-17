@@ -218,111 +218,6 @@ class image_loader(object):
         return self.images, self.annotations
 
 
-class Data_Set_Reader(object):
-    def __init__(self,path=None, verbose=True, expansion=0, wanted_indexes=None):
-        '''
-        :param path:
-        :param by_patient:
-        :param verbose:
-        :param num_patients:
-        :param is_test_set:
-        :param random_start:
-        :param expansion:
-        :param shuffle_images:
-        :param wanted_indexes: a tuple of indexes wanted (2) will pull disease only if 1 is liver
-        '''
-        self.wanted_indexes = wanted_indexes
-        self.expansion = expansion
-        self.start_stop_dict = {}
-        self.patient_dict = {}
-        self.verbose = verbose
-        self.file_batches = []
-        self.data_path = path
-        self.file_list = []
-        self.file_ext = '.npy'
-        if path:
-            if 'descriptions_start_and_stop.pkl' in os.listdir(path):
-                self.start_stop_dict = load_obj(os.path.join(path, 'descriptions_start_and_stop.pkl'))
-            if os.path.exists(path):
-                for file in os.listdir(path):
-                    if file.find('.npy') == -1 and file.find('.nii.gz') == -1:
-                        continue
-                    if file.find('_annotation.') == -1:
-                        if file.find('.nii.gz') != -1:
-                            self.file_ext = '.nii.gz'
-                        self.file_list.append(os.path.join(path, file))
-            elif self.verbose:
-                print(path)
-                print('Wrong path')
-        self.load_file_list = self.file_list[:]
-        self.make_patient_list()
-
-    def make_patient_list(self):
-        self.patient_dict = {}
-        self.patient_dict_indexes = {}
-        self.start_stop_dict_local = {}
-        if not self.file_list and self.verbose:
-            print('No files found')
-        for file in self.file_list:
-            broken_up = file.split('\\')
-            if len(broken_up) == 1:
-                broken_up = file.split('/')
-            broken_up = broken_up[-1].split('_')
-            if broken_up[-1].find('image') == 0: # Making everything back compatible with the new style of passing data
-                slice_num = int(broken_up[-2])
-                description = ''
-                for i in broken_up[:-2]:
-                    description += i + '_'
-                description = description[:-1]
-            else:
-                slice_num = int(broken_up[-1].split('.')[0])
-                description = ''
-                for i in broken_up[:-1]:
-                    description += i + '_'
-                description = description[:-1]
-            start, stop = None, None
-            values = None
-            if description in self.start_stop_dict.keys() and description not in self.start_stop_dict_local.keys():
-                if self.wanted_indexes:
-                    for index in self.wanted_indexes:
-                        if index in self.start_stop_dict[description]:
-                            values = self.start_stop_dict[description][index]
-                            self.patient_dict_indexes[description] = {index:values}
-                            if not start:
-                                start, stop = min(values), max(values)
-                            else:
-                                start, stop = min([start,min(values)]), max([stop,max(values)])
-                else:
-                    start, stop = self.start_stop_dict[description]['start'], self.start_stop_dict[description]['stop']
-                self.start_stop_dict_local[description] = {'start stop':[start, stop],'values':values}
-            elif description in self.start_stop_dict_local.keys():
-                start,stop = self.start_stop_dict_local[description]['start stop']
-                values = self.start_stop_dict_local[description]['values']
-            else:
-                print(description)
-                start, stop = 0,999
-                print('no start or stop')
-            start -= self.expansion
-            stop += self.expansion
-            if description in self.patient_dict.keys():
-                files = self.patient_dict[description]
-            else:
-                files = {}
-            if np.any(values):
-                if np.max(np.abs(slice_num-values) < self.expansion):
-                    files[slice_num] = file
-            elif slice_num >= start and slice_num <= stop:
-                files[slice_num] = file
-            self.patient_dict[description] = files
-        for pat in self.patient_dict.keys():
-            slice_vals = list(self.patient_dict[pat].keys())
-            indexes = [i[0] for i in sorted(enumerate(slice_vals), key=lambda x: x[1])]
-            file_names = [self.patient_dict[pat][key] for key in self.patient_dict[pat].keys()]
-            file_names = list(np.asarray(file_names)[indexes])
-            self.patient_dict[pat] = file_names
-            self.file_list += self.patient_dict[pat]
-
-
 class Train_Data_Generator2D(Sequence):
     def __init__(self, batch_size=5, data_paths=None,expansion=0,whole_patient=False, shuffle=False,
                  noise=None,z_images=16, all_for_one=False, on_VGG=False, is_test_set=False, mean_val=None,
@@ -883,9 +778,114 @@ def get_bounding_box(train_images_out_base, train_annotations_out_base, include_
         return min_z, max_z, min_row, max_row, min_col, max_col
 
 
+class Data_Set_Reader(object):
+    def __init__(self,path=None, verbose=True, expansion=0, wanted_indexes=None):
+        '''
+        :param path:
+        :param by_patient:
+        :param verbose:
+        :param num_patients:
+        :param is_test_set:
+        :param random_start:
+        :param expansion:
+        :param shuffle_images:
+        :param wanted_indexes: a tuple of indexes wanted (2) will pull disease only if 1 is liver
+        '''
+        self.wanted_indexes = wanted_indexes
+        self.expansion = expansion
+        self.start_stop_dict = {}
+        self.patient_dict = {}
+        self.verbose = verbose
+        self.file_batches = []
+        self.data_path = path
+        self.file_list = []
+        self.file_ext = '.npy'
+        if path:
+            if 'descriptions_start_and_stop.pkl' in os.listdir(path):
+                self.start_stop_dict = load_obj(os.path.join(path, 'descriptions_start_and_stop.pkl'))
+            if os.path.exists(path):
+                for file in os.listdir(path):
+                    if file.find('.npy') == -1 and file.find('.nii.gz') == -1:
+                        continue
+                    if file.find('_annotation.') == -1:
+                        if file.find('.nii.gz') != -1:
+                            self.file_ext = '.nii.gz'
+                        self.file_list.append(os.path.join(path, file))
+            elif self.verbose:
+                print(path)
+                print('Wrong path')
+        self.load_file_list = self.file_list[:]
+        self.make_patient_list()
+
+    def make_patient_list(self):
+        self.patient_dict = {}
+        self.patient_dict_indexes = {}
+        self.start_stop_dict_local = {}
+        if not self.file_list and self.verbose:
+            print('No files found')
+        for file in self.file_list:
+            broken_up = file.split('\\')
+            if len(broken_up) == 1:
+                broken_up = file.split('/')
+            broken_up = broken_up[-1].split('_')
+            if broken_up[-1].find('image') == 0: # Making everything back compatible with the new style of passing data
+                slice_num = int(broken_up[-2])
+                description = ''
+                for i in broken_up[:-2]:
+                    description += i + '_'
+                description = description[:-1]
+            else:
+                slice_num = int(broken_up[-1].split('.')[0])
+                description = ''
+                for i in broken_up[:-1]:
+                    description += i + '_'
+                description = description[:-1]
+            start, stop = None, None
+            values = None
+            if description in self.start_stop_dict.keys() and description not in self.start_stop_dict_local.keys():
+                if self.wanted_indexes:
+                    for index in self.wanted_indexes:
+                        if index in self.start_stop_dict[description]:
+                            values = self.start_stop_dict[description][index]
+                            self.patient_dict_indexes[description] = {index:values}
+                            if not start:
+                                start, stop = min(values), max(values)
+                            else:
+                                start, stop = min([start,min(values)]), max([stop,max(values)])
+                else:
+                    start, stop = self.start_stop_dict[description]['start'], self.start_stop_dict[description]['stop']
+                self.start_stop_dict_local[description] = {'start stop':[start, stop],'values':values}
+            elif description in self.start_stop_dict_local.keys():
+                start,stop = self.start_stop_dict_local[description]['start stop']
+                values = self.start_stop_dict_local[description]['values']
+            else:
+                print(description)
+                start, stop = 0,999
+                print('no start or stop')
+            start -= self.expansion
+            stop += self.expansion
+            if description in self.patient_dict.keys():
+                files = self.patient_dict[description]
+            else:
+                files = {}
+            if np.any(values):
+                if np.max(np.abs(slice_num-values) < self.expansion):
+                    files[slice_num] = file
+            elif slice_num >= start and slice_num <= stop:
+                files[slice_num] = file
+            self.patient_dict[description] = files
+        for pat in self.patient_dict.keys():
+            slice_vals = list(self.patient_dict[pat].keys())
+            indexes = [i[0] for i in sorted(enumerate(slice_vals), key=lambda x: x[1])]
+            file_names = [self.patient_dict[pat][key] for key in self.patient_dict[pat].keys()]
+            file_names = list(np.asarray(file_names)[indexes])
+            self.patient_dict[pat] = file_names
+            self.file_list += self.patient_dict[pat]
+
+
 class Data_Generator_Class(Sequence):
     def __init__(self, by_patient=False, whole_patient=False, wanted_indexes=None,data_paths=None, num_patients=1,
-                 expansion=0,shuffle=False, batch_size=1, save_and_reload=True,
+                 expansion=0,shuffle=False, batch_size=1, save_and_reload=True, max_batch_size=np.inf,
                  image_processors=None, split_data_evenly_from_paths=False, random_start=True, by_patient_2D=False):
         '''
         :param by_patient: (True/False), load by 3D patient or 2D slices
@@ -906,6 +906,7 @@ class Data_Generator_Class(Sequence):
         self.by_patient_2D = by_patient_2D
         self.random_start = random_start
         self.num_patients = num_patients
+        self.max_batch_size = max_batch_size
         self.split_data_evenly_from_paths = split_data_evenly_from_paths
         if whole_patient:
             by_patient = True
@@ -939,6 +940,7 @@ class Data_Generator_Class(Sequence):
                 print('Nothing in data path:' + path)
             models[path] = Data_Set_Reader(path=path, expansion=expansion, wanted_indexes=wanted_indexes)
             self.patient_dict[path] = models[path].patient_dict
+            self.patient_dict_indexes.update(models[path].start_stop_dict)
             self.file_list += models[path].file_list
         return models
 
@@ -1010,11 +1012,20 @@ class Data_Generator_Class(Sequence):
                 if finish > len(image_names):
                     finish = int(len(image_names))
             else:
-                values = self.patient_dict_indexes[description][self.wanted_indexes[-1]]
-                np.random.shuffle(values)
-                new_file = file.replace(slice_num+ext,str(values[0])+ext)
-                if os.path.exists(new_file):
-                    start = image_names.index(new_file)
+                if self.wanted_indexes:
+                    values = self.patient_dict_indexes[description][self.wanted_indexes[-1]]
+                    np.random.shuffle(values)
+
+                    for value in values:
+                        new_file = file.replace('{}_image{}'.format(slice_num, ext), '{}_image{}'.format(value, ext))
+                        if os.path.exists(new_file):
+                            start = image_names.index(new_file)
+                            finish = min([int(start+batch_size),len(image_names)])
+                            break
+                else:
+                    start = self.patient_dict_indexes[description]['start']
+                    stop = self.patient_dict_indexes[description]['stop']
+                    start += np.random.randint(0,len(image_names))
                     finish = min([int(start+batch_size),len(image_names)])
         wanted_names = []
         for index, i in enumerate(range(start,finish)):
@@ -1039,6 +1050,8 @@ class Data_Generator_Class(Sequence):
                         images_temp = sitk.GetArrayFromImage(images_temp_handle)[None,...]
                         annotations_temp_handle = sitk.ReadImage(image_name.replace('_image.nii.gz','_annotation.nii.gz'))
                         annotations_temp = sitk.GetArrayFromImage(annotations_temp_handle)[None,...]
+                        # for image_processor in self.image_processors:
+                        #     images_temp_handle, annotations_temp_handle = image_processor.sitk_processes(images_temp_handle,annotations_temp_handle)
                 for image_processors in self.image_processors:
                     images_temp, annotations_temp = image_processors.preload_single_image_process(images_temp, annotations_temp)
                 images_temp = images_temp[...,None]
@@ -1049,29 +1062,78 @@ class Data_Generator_Class(Sequence):
                               np.zeros((batch_size,) + annotations_temp.shape[1:],dtype='int8')
         for i, key in enumerate(wanted_names):
             images[i],annotations[i] = self.image_dictionary[key]
-        if wanted_names[0] not in self.preload_patient_dict and self.whole_patient:
-            for image_processors in self.image_processors:
-                images, annotations = image_processors.pre_load_whole_image_process(images, annotations)
-            for i, key in enumerate(wanted_names):
-                self.image_dictionary[key] = copy.deepcopy([images[i][None,...], annotations[i][None,...]])
-            self.preload_patient_dict.append(wanted_names[0])
         for image_processors in self.image_processors:
             images, annotations = image_processors.post_load_process(images, annotations)
         return images, annotations
+
+    def patient_preload_process(self, image_names):
+        start = 0
+        finish = len(image_names)
+        ext = '.nii.gz'
+        wanted_names = []
+        for index, i in enumerate(range(start,finish)):
+            if i < 0 or i > len(image_names):
+                print('start:' + str(start) + 'total images: ' + str(len(image_names)) + '_i:' + str(i))
+            if image_names[i] not in self.image_dictionary or not self.save_and_reload:
+                image_name = image_names[i]
+                if image_name.find('_image' + ext) == -1:
+                    data_handle = sitk.ReadImage(image_name)
+                    data = sitk.ReadImage(data_handle)
+                    images_temp = data[0, :, :][None,...]
+                    annotations_temp = data[1, :, :][None,...]
+                else:
+                    images_temp_handle = sitk.ReadImage(image_name)
+                    images_temp = sitk.GetArrayFromImage(images_temp_handle)[None,...]
+                    annotations_temp_handle = sitk.ReadImage(image_name.replace('_image.nii.gz','_annotation.nii.gz'))
+                    annotations_temp = sitk.GetArrayFromImage(annotations_temp_handle)[None,...]
+                for image_processors in self.image_processors:
+                    images_temp, annotations_temp = image_processors.preload_single_image_process(images_temp, annotations_temp)
+                images_temp = images_temp[...,None]
+                self.image_dictionary[image_names[i]] = [images_temp.astype('float32'), annotations_temp]
+            wanted_names.append(image_names[i])
+        images_temp, annotations_temp = self.image_dictionary[wanted_names[0]]
+        images, annotations = np.ones((finish,) + images_temp.shape[1:],dtype='float32')*-1000, \
+                              np.zeros((finish,) + annotations_temp.shape[1:],dtype='int8')
+        for i, key in enumerate(wanted_names):
+            images[i],annotations[i] = self.image_dictionary[key]
+        for image_processors in self.image_processors:
+            images, annotations = image_processors.pre_load_whole_image_process(images, annotations)
+        for i, key in enumerate(wanted_names):
+            self.image_dictionary[key] = copy.deepcopy([images[i][None,...], annotations[i][None,...]])
+        return None
+
+    def get_patient_name(self, image_names):
+        file = image_names[0]
+        broken_up = file.split('\\')
+        if len(broken_up) == 1:
+            broken_up = file.split('/')
+        broken_up = broken_up[-1].split('_')
+        patient_id = ''.join(broken_up[:2])
+        return patient_id
 
     def load_images(self,index):
         batch_size = self.batch_size
         if self.by_patient:
             image_names_all = self.file_batches[index]
             image_names = image_names_all[0]
+            patient_id = self.get_patient_name(image_names)
+            if patient_id not in self.preload_patient_dict:
+                self.patient_preload_process(image_names)
+                self.preload_patient_dict.append(patient_id)
             if self.whole_patient:
                 batch_size = len(image_names)
+            if batch_size > self.max_batch_size:
+                batch_size = self.max_batch_size
             images_out, annotations_out = self.load_image(batch_size=batch_size, image_names=image_names)
             if not self.by_patient_2D:
                 images_out = np.expand_dims(images_out,axis=0)
                 annotations_out = np.expand_dims(annotations_out,axis=0)
                 for i in range(1, len(image_names_all)):
                     image_names = image_names_all[i]
+                    patient_id = self.get_patient_name(image_names)
+                    if patient_id not in self.preload_patient_dict:
+                        self.patient_preload_process(image_names)
+                        self.preload_patient_dict.append(patient_id)
                     images, annotations = self.load_image(batch_size=batch_size, image_names=image_names)
                     images_out = np.concatenate([images_out, np.expand_dims(images, axis=0)], axis=0)
                     annotations_out = np.concatenate([annotations_out, np.expand_dims(annotations, axis=0)], axis=0)

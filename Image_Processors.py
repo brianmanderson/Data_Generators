@@ -4,6 +4,7 @@ from tensorflow.python.keras.utils.np_utils import to_categorical
 import cv2, math, copy, os, sys
 from skimage.measure import block_reduce
 from .Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
+from .Resample_Class.Resample_Class import Resample_Class_Object, sitk
 from .Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
 
 '''
@@ -25,6 +26,15 @@ Random_2D_Deformation_Processor(by_patient, image_size, variation): Randomly def
 
 
 class Image_Processor(object):
+    def sitk_processes(self, image_handle, annotation_handle):
+        '''
+        This is for getting information on the sitk image for later
+        :param image:
+        :param annotation:
+        :return:
+        '''
+        return image_handle, annotation_handle
+
     def preload_single_image_process(self, image, annotation):
         '''
         This is for image processes done loading on a slice by slice basis that only need to be done once, like
@@ -51,6 +61,40 @@ class Image_Processor(object):
         :param annotations: Some image of shape [z_images, n_row, m_col]
         :return:
         '''
+        return images, annotations
+
+
+class Resample_Images(Image_Processor):
+    def __init__(self, output_spacing=(None,None,2.5)):
+        '''
+        This is a little tricky... We only want to perform this task once, since it requires potentially large
+        computation time, but it also requires that all individual image slices already be loaded
+        '''
+        self.output_spacing = output_spacing
+        self.resampler = Resample_Class_Object()
+
+    def sitk_processes(self, image_handle, annotation_handle):
+        self.input_spacing = image_handle.GetSpacing()
+        return image_handle, annotation_handle
+
+    def pre_load_whole_image_process(self, images, annotations):
+        output_spacing = []
+        for index in range(3):
+            if self.output_spacing[index] is None:
+                output_spacing.append(self.input_spacing[index])
+            else:
+                output_spacing.append(self.output_spacing[index])
+        output_spacing = tuple(output_spacing)
+        if output_spacing != self.input_spacing:
+            image_handle = sitk.GetImageFromArray(images)
+            image_handle.SetSpacing(self.input_spacing)
+            annotation_handle = sitk.GetImageFromArray(annotations)
+            print('Resampling {} to {}'.format(self.input_spacing, output_spacing))
+            image_handle = self.resampler.resample_image(input_image=image_handle, input_spacing=self.input_spacing,
+                                                         output_spacing=output_spacing, is_annotation=False)
+            annotation_handle = self.resampler.resample_image(input_image=annotation_handle, input_spacing=self.input_spacing,
+                                                         output_spacing=output_spacing, is_annotation=True)
+            images, annotations = sitk.GetArrayFromImage(image_handle), sitk.GetArrayFromImage(annotation_handle)
         return images, annotations
 
 
@@ -307,6 +351,81 @@ class Add_Noise_To_Images(Image_Processor):
         return images, annotations
 
 
+def get_bounding_box_indexes(annotation):
+    '''
+    :param annotation: A binary image of shape [# images, # rows, # cols, channels]
+    :return: the min and max z, row, and column numbers bounding the image
+    '''
+    annotation = np.squeeze(annotation)
+    if annotation.dtype != 'int':
+        annotation[annotation>0.1] = 1
+        annotation = annotation.astype('int')
+    indexes = np.where(np.any(annotation, axis=(1, 2)) == True)[0]
+    min_z_s, max_z_s = indexes[0], indexes[-1]
+    '''
+    Get the row values of primary and secondary
+    '''
+    indexes = np.where(np.any(annotation, axis=(0, 2)) == True)[0]
+    min_r_s, max_r_s = indexes[0], indexes[-1]
+    '''
+    Get the col values of primary and secondary
+    '''
+    indexes = np.where(np.any(annotation, axis=(0, 1)) == True)[0]
+    min_c_s, max_c_s = indexes[0], indexes[-1]
+    return min_z_s, int(max_z_s + 1), min_r_s, int(max_r_s + 1), min_c_s, int(max_c_s + 1)
+
+
+class Clip_Image_Area(Image_Processor):
+    def __init__(self, bounding_box_dimension=[30,100,100], threshold_value=None, liver_box=True):
+        self.bounding_box_dimension = bounding_box_dimension
+        self.threshold_value = threshold_value
+        self.liver_box = liver_box
+
+    def post_load_process(self, images, annotations):
+        if self.liver_box:
+            liver = np.argmax(annotations,axis=-1)
+            z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
+            z_start = max([0,z_start-self.bounding_box_expansion[0]])
+            z_stop = min([z_stop+self.bounding_box_expansion[0],images.shape[1]])
+            r_start = max([0,r_start-self.bounding_box_expansion[1]])
+            r_stop = min([512,r_stop+self.bounding_box_expansion[1]])
+            c_start = max([0,c_start-self.bounding_box_expansion[2]])
+            c_stop = min([512,c_stop+self.bounding_box_expansion[2]])
+        else:
+            z_start = 0
+            z_stop = images.shape[1]
+            r_start = 0
+            r_stop = images.shape[2]
+            c_start = 0
+            c_stop = images.shape[3]
+        z_total, r_total, c_total = z_stop - z_start, r_stop - r_start, c_stop - c_start
+        remainder_z, remainder_r, remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
+                                                self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
+                                                self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
+        min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
+        if self.threshold_value is None:
+            threshold_val = np.min(x)
+        else:
+            threshold_val = self.threshold_value
+        out_images = np.ones([1,min_images,min_rows,min_cols,x.shape[-1]],dtype=x.dtype)*threshold_val
+        out_annotations = np.zeros([1, min_images, min_rows, min_cols, y.shape[-1]], dtype=y.dtype)
+        out_annotations[..., 0] = 1
+        out_images[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = x[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
+        out_annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = y[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
+        if self.mask_image:
+            out_images[out_annotations[...,0] == 1] = self.threshold_value
+        if self.return_mask:
+            mask = np.sum(out_annotations[...,1:],axis=-1)[...,None]
+            if self.remove_liver_layer:  # In future predictions we do not want to predict liver, so toss it out
+                out_annotations = out_annotations[..., (0, 2)]
+                out_annotations[...,0] = 1-np.sum(out_annotations[...,1:],axis=-1)
+            mask = np.repeat(mask,out_annotations.shape[-1],axis=-1)
+            sum_vals = np.zeros(mask.shape)
+            sum_vals[...,0] = 1 - mask[...,0]
+            return [out_images,mask, sum_vals], out_annotations
+        if self.remove_liver_layer:
+            out_annotations = out_annotations[...,(0,2)]
+        return out_images, out_annotations
 class Random_Horizontal_Vertical_Flips(Image_Processor):
     def __init__(self, by_patient=False, h_flip=False, v_flip=False):
         '''
