@@ -1120,32 +1120,28 @@ class Data_Generator_Class(Sequence):
         batch_size = self.batch_size
         if self.by_patient:
             image_names_all = self.file_batches[index]
-            image_names = image_names_all[0]
-            patient_id = self.get_patient_name(image_names)
-            if patient_id not in self.preload_patient_dict:
-                self.patient_preload_process(image_names)
-                self.preload_patient_dict.append(patient_id)
-            if self.whole_patient:
-                batch_size = len(image_names)
-            if batch_size > self.max_batch_size:
-                batch_size = self.max_batch_size
-            images_out, annotations_out = self.load_image(batch_size=batch_size, image_names=image_names)
             if not self.by_patient_2D:
-                if len(images_out.shape) < 5:
-                    images_out = np.expand_dims(images_out,axis=0)
-                    annotations_out = np.expand_dims(annotations_out,axis=0)
-                for i in range(1, len(image_names_all)):
+                for i in range(len(image_names_all)):
                     image_names = image_names_all[i]
                     patient_id = self.get_patient_name(image_names)
                     if patient_id not in self.preload_patient_dict:
                         self.patient_preload_process(image_names)
                         self.preload_patient_dict.append(patient_id)
+                    if self.whole_patient:
+                        batch_size = len(image_names)
+                    if batch_size > self.max_batch_size:
+                        batch_size = self.max_batch_size
                     images, annotations = self.load_image(batch_size=batch_size, image_names=image_names)
                     if len(images.shape) < 5:
                         images = np.expand_dims(images, axis=0)
                         annotations = np.expand_dims(annotations, axis=0)
-                    images_out = np.concatenate([images_out, images], axis=0)
-                    annotations_out = np.concatenate([annotations_out, annotations], axis=0)
+                    if i == 0:
+                        images_out, annotations_out = images, annotations
+                    else:
+                        images_out = np.concatenate([images_out, images], axis=0)
+                        annotations_out = np.concatenate([annotations_out, annotations], axis=0)
+                for image_processor in self.image_processors:
+                    images_out, annotations_out = image_processor.post_load_all_patient_process(images_out, annotations_out)
         else:
             image_names = self.file_batches[index]
             images_out, annotations_out = self.load_image(batch_size=batch_size, image_names=image_names)

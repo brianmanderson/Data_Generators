@@ -63,6 +63,40 @@ class Image_Processor(object):
         '''
         return images, annotations
 
+    def post_load_all_patient_process(self, images, annotations):
+        '''
+        This is for image processes which go across the entire patient stack,
+        :param images: [#patients, z_images, n_row, m_col, channel]
+        :param annotations: [#patients, z_images, n_row, m_col, # classes]
+        :return:
+        '''
+        return images, annotations
+
+
+class Mask_Pred_Within_Annotation(Image_Processor):
+    def __init__(self, return_mask=False, liver_box=False, mask_image=False, remove_liver_layer_indexes=(0,2),
+                 threshold_value=0):
+        self.return_mask = return_mask
+        self.liver_box = liver_box
+        self.mask_image = mask_image
+        self.remove_liver_layer_indexes = remove_liver_layer_indexes
+        self.threshold_value = threshold_value
+
+    def post_load_all_patient_process(self, images, annotations):
+        if self.mask_image:
+            images[annotations[...,0] == 1] = self.threshold_value
+        if self.return_mask:
+            mask = np.sum(annotations[...,1:],axis=-1)[...,None]
+            if self.remove_liver_layer_indexes is not None:  # In future predictions we do not want to predict liver, so toss it out
+                annotations = annotations[..., self.remove_liver_layer_indexes]
+                annotations[...,0] = 1-np.sum(annotations[...,1:],axis=-1)
+            mask = np.repeat(mask,annotations.shape[-1],axis=-1)
+            sum_vals = np.zeros(mask.shape)
+            sum_vals[...,0] = 1 - mask[...,0]
+            return [images,mask, sum_vals], annotations
+        if self.remove_liver_layer_indexes is not None:
+            annotations = annotations[..., self.remove_liver_layer_indexes]
+        return images, annotations
 
 class Pull_Cube_From_Image(Image_Processor):
     def __init__(self, desired_size, samples=1, random_z=True):
