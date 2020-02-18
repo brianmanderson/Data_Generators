@@ -1014,18 +1014,23 @@ class Data_Generator_Class(Sequence):
             else:
                 if self.wanted_indexes:
                     values = self.patient_dict_indexes[description][self.wanted_indexes[-1]]
-                    np.random.shuffle(values)
-
-                    for value in values:
-                        new_file = file.replace('{}_image{}'.format(slice_num, ext), '{}_image{}'.format(value, ext))
-                        if os.path.exists(new_file):
-                            start = image_names.index(new_file)
-                            finish = min([int(start+batch_size),len(image_names)])
-                            break
+                    batch_range = np.arange(-batch_size,0)
+                    go = True
+                    while go:
+                        np.random.shuffle(values)
+                        np.random.shuffle(batch_range)
+                        for value, batch_step in zip(values, batch_range):
+                            val = value + batch_step
+                            new_file = file.replace('{}_image{}'.format(slice_num, ext), '{}_image{}'.format(val, ext))
+                            if new_file in image_names:
+                                start = image_names.index(new_file)
+                                finish = min([int(start+batch_size),len(image_names)])
+                                go = False
+                                break
                 else:
                     start = self.patient_dict_indexes[description]['start']
                     stop = self.patient_dict_indexes[description]['stop']
-                    start += np.random.randint(0,len(image_names))
+                    start += np.random.randint(0,stop-start)
                     finish = min([int(start+batch_size),len(image_names)])
         wanted_names = []
         for index, i in enumerate(range(start,finish)):
@@ -1126,8 +1131,9 @@ class Data_Generator_Class(Sequence):
                 batch_size = self.max_batch_size
             images_out, annotations_out = self.load_image(batch_size=batch_size, image_names=image_names)
             if not self.by_patient_2D:
-                images_out = np.expand_dims(images_out,axis=0)
-                annotations_out = np.expand_dims(annotations_out,axis=0)
+                if len(images_out.shape) < 5:
+                    images_out = np.expand_dims(images_out,axis=0)
+                    annotations_out = np.expand_dims(annotations_out,axis=0)
                 for i in range(1, len(image_names_all)):
                     image_names = image_names_all[i]
                     patient_id = self.get_patient_name(image_names)
@@ -1135,8 +1141,11 @@ class Data_Generator_Class(Sequence):
                         self.patient_preload_process(image_names)
                         self.preload_patient_dict.append(patient_id)
                     images, annotations = self.load_image(batch_size=batch_size, image_names=image_names)
-                    images_out = np.concatenate([images_out, np.expand_dims(images, axis=0)], axis=0)
-                    annotations_out = np.concatenate([annotations_out, np.expand_dims(annotations, axis=0)], axis=0)
+                    if len(images.shape) < 5:
+                        images = np.expand_dims(images, axis=0)
+                        annotations = np.expand_dims(annotations, axis=0)
+                    images_out = np.concatenate([images_out, images], axis=0)
+                    annotations_out = np.concatenate([annotations_out, annotations], axis=0)
         else:
             image_names = self.file_batches[index]
             images_out, annotations_out = self.load_image(batch_size=batch_size, image_names=image_names)

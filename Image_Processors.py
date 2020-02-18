@@ -64,6 +64,35 @@ class Image_Processor(object):
         return images, annotations
 
 
+class Pull_Cube_From_Image(Image_Processor):
+    def __init__(self, desired_size, samples=1, random_z=True):
+        self.desired_size = desired_size
+        self.samples = samples
+        self.random_z = random_z
+
+    def post_load_process(self, images, annotations):
+        desired_size = self.desired_size
+        samples = self.samples
+        output_images = np.ones((samples,) + desired_size + (images.shape[-1],)) * np.min(images)
+        output_annotations = np.zeros((samples,) + desired_size + (annotations.shape[-1],))
+        z_locations, r_locations, c_locations = np.where(annotations[..., -1] == 1)
+        for i in range(samples):
+            index = np.random.randint(len(z_locations))
+            z_start, z_stop = 0, desired_size[0]
+            if self.random_z:
+                z_start = max([0, z_locations[index] - desired_size[0] // 2])
+                z_stop = min([z_start + desired_size[0], images.shape[1]])
+            r_start = max([0, r_locations[index] - desired_size[1] // 2])
+            r_stop = min([r_start + desired_size[1], images.shape[1]])
+            c_start = max([0, c_locations[index] - desired_size[2] // 2])
+            c_stop = min([c_start + desired_size[2], images.shape[2]])
+            image_cube = images[z_start:z_stop, r_start:r_stop, c_start:c_stop, ...]
+            annotation_cube = annotations[z_start:z_stop, r_start:r_stop, c_start:c_stop, ...]
+            output_images[i, :image_cube.shape[0], :image_cube.shape[1], :image_cube.shape[2], ...] = image_cube
+            output_annotations[i, :image_cube.shape[0], :image_cube.shape[1], :image_cube.shape[2], ...] = annotation_cube
+        return output_images, output_annotations
+
+
 class Resample_Images(Image_Processor):
     def __init__(self, output_spacing=(None,None,2.5)):
         '''
