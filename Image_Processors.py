@@ -98,6 +98,7 @@ class Mask_Pred_Within_Annotation(Image_Processor):
             annotations = annotations[..., self.remove_liver_layer_indexes]
         return images, annotations
 
+
 class Pull_Cube_From_Image(Image_Processor):
     def __init__(self, desired_size, samples=1, random_z=True):
         self.desired_size = desired_size
@@ -125,6 +126,35 @@ class Pull_Cube_From_Image(Image_Processor):
             output_images[i, :image_cube.shape[0], :image_cube.shape[1], :image_cube.shape[2], ...] = image_cube
             output_annotations[i, :image_cube.shape[0], :image_cube.shape[1], :image_cube.shape[2], ...] = annotation_cube
         return output_images, output_annotations
+
+
+class Clip_Images(Image_Processor):
+    def __init__(self, annotations_index=(1,2), bounding_box_expansion=(10,10,10), threshold_value=0):
+        self.annotations_index = annotations_index
+        self.bounding_box_expansion = bounding_box_expansion
+        self.threshold_value = threshold_value
+
+    def post_load_process(self, images, annotations):
+        liver = np.sum(annotations[...,self.annotations_index],axis=-1)
+        z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
+        z_start = max([0,z_start-self.bounding_box_expansion[0]])
+        z_stop = min([z_stop+self.bounding_box_expansion[0],images.shape[0]])
+        r_start = max([0,r_start-self.bounding_box_expansion[1]])
+        r_stop = min([images.shape[1],r_stop+self.bounding_box_expansion[1]])
+        c_start = max([0,c_start-self.bounding_box_expansion[2]])
+        c_stop = min([images.shape[2],c_stop+self.bounding_box_expansion[2]])
+        min_images, min_rows, min_cols = z_stop - z_start, r_stop - r_start, c_stop - c_start
+        if self.threshold_value is None:
+            threshold_val = np.min(images)
+        else:
+            threshold_val = self.threshold_value
+        out_images = np.ones([min_images,min_rows,min_cols,images.shape[-1]],dtype=images.dtype)*threshold_val
+        out_annotations = np.zeros([min_images, min_rows, min_cols, annotations.shape[-1]], dtype=annotations.dtype)
+        image_cube = images[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
+        annotation_cube = annotations[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
+        out_images[:image_cube.shape[0],:image_cube.shape[1],:image_cube.shape[2],...] = image_cube
+        out_annotations[:image_cube.shape[0], :image_cube.shape[1], :image_cube.shape[2], ...] = annotation_cube
+        return out_images, out_annotations
 
 
 class Resample_Images(Image_Processor):
@@ -438,57 +468,6 @@ def get_bounding_box_indexes(annotation):
     return min_z_s, int(max_z_s + 1), min_r_s, int(max_r_s + 1), min_c_s, int(max_c_s + 1)
 
 
-class Clip_Image_Area(Image_Processor):
-    def __init__(self, bounding_box_dimension=[30,100,100], threshold_value=None, liver_box=True):
-        self.bounding_box_dimension = bounding_box_dimension
-        self.threshold_value = threshold_value
-        self.liver_box = liver_box
-
-    def post_load_process(self, images, annotations):
-        if self.liver_box:
-            liver = np.argmax(annotations,axis=-1)
-            z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
-            z_start = max([0,z_start-self.bounding_box_expansion[0]])
-            z_stop = min([z_stop+self.bounding_box_expansion[0],images.shape[1]])
-            r_start = max([0,r_start-self.bounding_box_expansion[1]])
-            r_stop = min([512,r_stop+self.bounding_box_expansion[1]])
-            c_start = max([0,c_start-self.bounding_box_expansion[2]])
-            c_stop = min([512,c_stop+self.bounding_box_expansion[2]])
-        else:
-            z_start = 0
-            z_stop = images.shape[1]
-            r_start = 0
-            r_stop = images.shape[2]
-            c_start = 0
-            c_stop = images.shape[3]
-        z_total, r_total, c_total = z_stop - z_start, r_stop - r_start, c_stop - c_start
-        remainder_z, remainder_r, remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
-                                                self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
-                                                self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
-        min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
-        if self.threshold_value is None:
-            threshold_val = np.min(x)
-        else:
-            threshold_val = self.threshold_value
-        out_images = np.ones([1,min_images,min_rows,min_cols,x.shape[-1]],dtype=x.dtype)*threshold_val
-        out_annotations = np.zeros([1, min_images, min_rows, min_cols, y.shape[-1]], dtype=y.dtype)
-        out_annotations[..., 0] = 1
-        out_images[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = x[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
-        out_annotations[:,0:z_stop-z_start,:r_stop-r_start,:c_stop-c_start,:] = y[:,z_start:z_stop,r_start:r_stop,c_start:c_stop,:]
-        if self.mask_image:
-            out_images[out_annotations[...,0] == 1] = self.threshold_value
-        if self.return_mask:
-            mask = np.sum(out_annotations[...,1:],axis=-1)[...,None]
-            if self.remove_liver_layer:  # In future predictions we do not want to predict liver, so toss it out
-                out_annotations = out_annotations[..., (0, 2)]
-                out_annotations[...,0] = 1-np.sum(out_annotations[...,1:],axis=-1)
-            mask = np.repeat(mask,out_annotations.shape[-1],axis=-1)
-            sum_vals = np.zeros(mask.shape)
-            sum_vals[...,0] = 1 - mask[...,0]
-            return [out_images,mask, sum_vals], out_annotations
-        if self.remove_liver_layer:
-            out_annotations = out_annotations[...,(0,2)]
-        return out_images, out_annotations
 class Random_Horizontal_Vertical_Flips(Image_Processor):
     def __init__(self, by_patient=False, h_flip=False, v_flip=False):
         '''
