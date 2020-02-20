@@ -381,26 +381,27 @@ class Normalize_to_Liver(Image_Processor):
 
 
 class Threshold_Images(Image_Processor):
-    def __init__(self, lower_bound=-np.inf, upper_bound=np.inf, inverse_image=False, post_load=True, floor=None):
+    def __init__(self, lower_bound=-np.inf, upper_bound=np.inf, inverse_image=False, post_load=True,
+                 final_scale_value=None):
         '''
         :param lower_bound: Lower bound to threshold images, normally -3.55 if Normalize_Images is used previously
         :param upper_bound: Upper bound to threshold images, normally 3.55 if Normalize_Images is used previously
         :param inverse_image: Should the image be inversed after threshold?
         :param post_load: should this be done each iteration? If False, gets slotted under pre_load_process
-        :param floor: Should the bottom value be set to a certain value? Useful if you will be zero padding
+        :param final_scale_value: Value to scale the entire image to (255 scales to 0-255), (1 scales to 0-1)
         '''
         self.lower = lower_bound
         self.upper = upper_bound
         self.inverse_image = inverse_image
         self.post_load = post_load
-        self.floor = floor
+        self.final_scale_value = final_scale_value
 
     def post_load_process(self, images, annotations):
         if self.post_load:
             images[images<self.lower] = self.lower
             images[images>self.upper] = self.upper
-            if self.floor is not None:
-                images = images - (self.lower-self.floor)
+            if self.final_scale_value is not None:
+                images = (images - self.lower)/(self.upper - self.lower) * self.final_scale_value
             if self.inverse_image:
                 if self.upper != np.inf and self.lower != -np.inf:
                     images = (self.upper + self.lower) - images
