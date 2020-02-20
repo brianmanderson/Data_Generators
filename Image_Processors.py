@@ -6,7 +6,6 @@ from skimage.measure import block_reduce
 from .Fill_Missing_Segments.Fill_In_Segments_sitk import Fill_Missing_Segments
 from .Resample_Class.Resample_Class import Resample_Class_Object, sitk
 from .Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
-
 '''
 Description of code
 Annotations_To_Categorical(num_classes): classes for annotations to be turned into
@@ -100,23 +99,25 @@ class Mask_Pred_Within_Annotation(Image_Processor):
 
 
 class Pull_Cube_From_Image(Image_Processor):
-    def __init__(self, desired_size, samples=1, random_z=True):
+    def __init__(self, desired_size, samples=1, random_z=True, annotation_index=-1):
         self.desired_size = desired_size
         self.samples = samples
         self.random_z = random_z
+        self.annotation_index = annotation_index
+        self.batch_range = np.arange(desired_size[0])
 
     def post_load_process(self, images, annotations):
         desired_size = self.desired_size
         samples = self.samples
         output_images = np.ones((samples,) + desired_size + (images.shape[-1],)) * np.min(images)
         output_annotations = np.zeros((samples,) + desired_size + (annotations.shape[-1],))
-        z_locations, r_locations, c_locations = np.where(annotations[..., -1] == 1)
+        z_locations, r_locations, c_locations = np.where(annotations[..., self.annotation_index] == 1)
         for i in range(samples):
             index = np.random.randint(len(z_locations))
-            z_start, z_stop = 0, desired_size[0]
             if self.random_z:
-                z_start = max([0, z_locations[index] - desired_size[0] // 2])
-                z_stop = min([z_start + desired_size[0], images.shape[1]])
+                np.random.shuffle(self.batch_range)
+            z_start = max([0, z_locations[index] - self.batch_range[0]])
+            z_stop = min([z_start + desired_size[0], images.shape[0]])
             r_start = max([0, r_locations[index] - desired_size[1] // 2])
             r_stop = min([r_start + desired_size[1], images.shape[1]])
             c_start = max([0, c_locations[index] - desired_size[2] // 2])
@@ -129,10 +130,9 @@ class Pull_Cube_From_Image(Image_Processor):
 
 
 class Clip_Images(Image_Processor):
-    def __init__(self, annotations_index=(1,2), bounding_box_expansion=(10,10,10), threshold_value=0):
+    def __init__(self, annotations_index=(1,2), bounding_box_expansion=(10,10,10)):
         self.annotations_index = annotations_index
         self.bounding_box_expansion = bounding_box_expansion
-        self.threshold_value = threshold_value
 
     def post_load_process(self, images, annotations):
         liver = np.sum(annotations[...,self.annotations_index],axis=-1)
@@ -143,17 +143,8 @@ class Clip_Images(Image_Processor):
         r_stop = min([images.shape[1],r_stop+self.bounding_box_expansion[1]])
         c_start = max([0,c_start-self.bounding_box_expansion[2]])
         c_stop = min([images.shape[2],c_stop+self.bounding_box_expansion[2]])
-        min_images, min_rows, min_cols = z_stop - z_start, r_stop - r_start, c_stop - c_start
-        if self.threshold_value is None:
-            threshold_val = np.min(images)
-        else:
-            threshold_val = self.threshold_value
-        out_images = np.ones([min_images,min_rows,min_cols,images.shape[-1]],dtype=images.dtype)*threshold_val
-        out_annotations = np.zeros([min_images, min_rows, min_cols, annotations.shape[-1]], dtype=annotations.dtype)
-        image_cube = images[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
-        annotation_cube = annotations[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
-        out_images[:image_cube.shape[0],:image_cube.shape[1],:image_cube.shape[2],...] = image_cube
-        out_annotations[:image_cube.shape[0], :image_cube.shape[1], :image_cube.shape[2], ...] = annotation_cube
+        out_images = images[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
+        out_annotations = annotations[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
         return out_images, out_annotations
 
 
