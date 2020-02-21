@@ -404,8 +404,8 @@ class Threshold_Images(Image_Processor):
         if not self.post_load:
             image[image<self.lower] = self.lower
             image[image>self.upper] = self.upper
-            if self.floor is not None:
-                image = image - (self.lower-self.floor)
+            if self.final_scale_value is not None:
+                image = (image - self.lower)/(self.upper - self.lower) * self.final_scale_value
             if self.inverse_image:
                 if self.upper != np.inf and self.lower != -np.inf:
                     image = (self.upper + self.lower) - image
