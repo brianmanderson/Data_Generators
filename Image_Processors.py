@@ -73,7 +73,7 @@ class Image_Processor(object):
 
 
 class Mask_Pred_Within_Annotation(Image_Processor):
-    def __init__(self, return_mask=False, liver_box=False, mask_image=False, remove_liver_layer_indexes=(0,2),
+    def __init__(self, return_mask=False, liver_box=False, mask_image=False, remove_liver_layer_indexes=None,
                  threshold_value=0):
         self.return_mask = return_mask
         self.liver_box = liver_box
