@@ -375,9 +375,9 @@ class Normalize_to_Liver(Image_Processor):
         data = images[liver == 1].flatten()
         data.sort()
         if self.upper:
-            top_75 = data[int(len(data)*self.fraction):]
+            top_75 = data[int(len(data)*self.fraction):int(len(data)*.95)]
         else:
-            top_75 = data[:int(len(data)*self.fraction)]
+            top_75 = data[int(len(data)*.05):int(len(data)*self.fraction)]
         mean_val = np.mean(top_75)
         std_val = np.std(top_75)
         images = (images - mean_val)/std_val

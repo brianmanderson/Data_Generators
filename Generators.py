@@ -1069,6 +1069,10 @@ class Data_Generator_Class(Sequence):
             images[i],annotations[i] = self.image_dictionary[key]
         for image_processors in self.image_processors:
             images, annotations = image_processors.post_load_process(images, annotations)
+            if len(np.unique(images)) < 100:
+                print(image_processors)
+                k = q
+                xxx = 1
         return images, annotations
 
     def patient_preload_process(self, image_names):
@@ -1093,6 +1097,10 @@ class Data_Generator_Class(Sequence):
                     annotations_temp = sitk.GetArrayFromImage(annotations_temp_handle)[None,...]
                 for image_processors in self.image_processors:
                     images_temp, annotations_temp = image_processors.preload_single_image_process(images_temp, annotations_temp)
+                    if len(np.unique(images_temp))<100:
+                        print(image_processors)
+                        k = q
+                        xxx = 1
                 images_temp = images_temp[...,None]
                 self.image_dictionary[image_names[i]] = [images_temp.astype('float32'), annotations_temp]
             wanted_names.append(image_names[i])
@@ -1103,6 +1111,10 @@ class Data_Generator_Class(Sequence):
             images[i],annotations[i] = self.image_dictionary[key]
         for image_processors in self.image_processors:
             images, annotations = image_processors.pre_load_whole_image_process(images, annotations)
+            if len(np.unique(images)) < 100:
+                print(image_processors)
+                k = q
+                xxx = 1
         for i, key in enumerate(wanted_names):
             self.image_dictionary[key] = copy.deepcopy([images[i][None,...], annotations[i][None,...]])
         return None
@@ -1124,6 +1136,7 @@ class Data_Generator_Class(Sequence):
                 image_names = image_names_all[i]
                 patient_id = self.get_patient_name(image_names)
                 if patient_id not in self.preload_patient_dict:
+                    print('preload')
                     self.patient_preload_process(image_names)
                     self.preload_patient_dict.append(patient_id)
                 if self.whole_patient:
@@ -1140,7 +1153,16 @@ class Data_Generator_Class(Sequence):
                     images_out = np.concatenate([images_out, images], axis=0)
                     annotations_out = np.concatenate([annotations_out, annotations], axis=0)
             for image_processor in self.image_processors:
+                print('post load')
                 images_out, annotations_out = image_processor.post_load_all_patient_process(images_out, annotations_out)
+                if type(images_out) == list:
+                    k = images_out[0]
+                else:
+                    k = images_out
+                if len(np.unique(k)) < 100:
+                    print(image_processor)
+                    k = q
+                    xxx = 1
             if self.by_patient_2D:
                 images_out, annotations_out = images_out[0,...], annotations_out[0,...]
         else:
