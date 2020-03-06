@@ -362,24 +362,21 @@ class Normalize_Images(Image_Processor):
 
 
 class Normalize_to_Liver(Image_Processor):
-    def __init__(self, fraction=3/4, upper=True):
+    def __init__(self, lower_fraction=0, upper_fraction=1):
         '''
         This is a little tricky... We only want to perform this task once, since it requires potentially large
         computation time, but it also requires that all individual image slices already be loaded
         '''
-        self.fraction = fraction
-        self.upper = upper
+        self.lower_fraction, self.upper_fraction = lower_fraction, upper_fraction
+
 
     def pre_load_whole_image_process(self, images, annotations):
         liver = np.sum(annotations[..., 1:], axis=-1)
         data = images[liver == 1].flatten()
         data.sort()
-        if self.upper:
-            top_75 = data[int(len(data)*self.fraction):int(len(data)*.95)]
-        else:
-            top_75 = data[int(len(data)*.05):int(len(data)*self.fraction)]
-        mean_val = np.mean(top_75)
-        std_val = np.std(top_75)
+        data_red = data[int(len(data)*self.lower_fraction):int(len(data)*self.upper_fraction)]
+        mean_val = np.mean(data_red)
+        std_val = np.std(data_red)
         images = (images - mean_val)/std_val
         return images, annotations
 

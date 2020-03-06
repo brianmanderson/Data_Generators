@@ -1113,7 +1113,7 @@ class Data_Generator_Class(Sequence):
         if len(broken_up) == 1:
             broken_up = file.split('/')
         broken_up = broken_up[-1].split('_')
-        patient_id = ''.join(broken_up[:2])
+        patient_id = ''.join(broken_up[:-2])
         return patient_id
 
     def load_images(self,index):
