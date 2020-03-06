@@ -362,21 +362,32 @@ class Normalize_Images(Image_Processor):
 
 
 class Normalize_to_Liver(Image_Processor):
-    def __init__(self, lower_fraction=0, upper_fraction=1):
+    def __init__(self):
         '''
         This is a little tricky... We only want to perform this task once, since it requires potentially large
         computation time, but it also requires that all individual image slices already be loaded
         '''
-        self.lower_fraction, self.upper_fraction = lower_fraction, upper_fraction
+        # Now performing FWHM
+        xxx = 1
 
 
     def pre_load_whole_image_process(self, images, annotations):
         liver = np.sum(annotations[..., 1:], axis=-1)
         data = images[liver == 1].flatten()
-        data.sort()
-        data_red = data[int(len(data)*self.lower_fraction):int(len(data)*self.upper_fraction)]
-        mean_val = np.mean(data_red)
-        std_val = np.std(data_red)
+        counts, bins = np.histogram(data, bins=1000)
+        bins = bins[:-1]
+        count_index = np.where(counts == np.max(counts))[0][-1]
+        half_counts = counts - np.max(counts) // 2
+        half_upper = np.abs(half_counts[count_index:])
+        max_50 = np.where(half_upper == np.min(half_upper))[0][0]
+
+        half_lower = np.abs(half_counts[:count_index][-1::-1])
+        min_50 = np.where(half_lower == np.min(half_lower))[0][0]
+
+        min_values = bins[count_index - min_50]
+        max_values = bins[count_index + max_50]
+        data = data[np.where((data >= min_values) & (data <= max_values))]
+        mean_val, std_val = np.mean(data), np.std(data)
         images = (images - mean_val)/std_val
         return images, annotations
 
