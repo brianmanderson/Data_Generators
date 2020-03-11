@@ -72,6 +72,19 @@ class Image_Processor(object):
         return images, annotations
 
 
+class Bring_Parotids_Together(Image_Processor):
+    def preload_single_image_process(self, image, annotation):
+        '''
+        This is for image processes done loading on a slice by slice basis that only need to be done once, like
+        normalizing a CT slice with a mean and std
+        :param image: Some image of shape [n_row, m_col]
+        :param annotation: Some image of shape [n_row, m_col]
+        :return:
+        '''
+        annotation[annotation>1] = 1
+        return image, annotation
+
+
 class Mask_Pred_Within_Annotation(Image_Processor):
     def __init__(self, return_mask=False, liver_box=False, mask_image=False, remove_liver_layer_indexes=None,
                  threshold_value=0):
@@ -392,6 +405,40 @@ class Normalize_to_Liver(Image_Processor):
         return images, annotations
 
 
+class Normalize_MR(Image_Processor):
+    def __init__(self):
+        '''
+        This is a little tricky... We only want to perform this task once, since it requires potentially large
+        computation time, but it also requires that all individual image slices already be loaded
+        '''
+        # Now performing FWHM
+        xxx = 1
+
+
+    def pre_load_whole_image_process(self, images, annotations):
+        data = images[...]
+        counts, bins = np.histogram(data, bins=100)
+        count_index = 0
+        count_value = 0
+        while count_value/np.sum(counts) < .3:
+            count_value += counts[count_index]
+            count_index += 1
+        min_bin = bins[count_index]
+        # bins = bins[:-1]
+        # count_index = np.where(counts == np.max(counts))[0][-1]
+        # half_counts = counts - np.max(counts) // 2
+        # half_upper = np.abs(half_counts[count_index:])
+        # max_50 = np.where(half_upper == np.min(half_upper))[0][0]
+        #
+        # max_values = bins[count_index + max_50]
+        # min_values = bins[count_index] - (bins[count_index + max_50] - bins[count_index + max_50])
+        # data = data[np.where((data >= min_values) & (data <= max_values))]
+        data = data[data>min_bin]
+        mean_val, std_val = np.mean(data), np.std(data)
+        images = (images - mean_val)/std_val
+        return images, annotations
+
+
 class Threshold_Images(Image_Processor):
     def __init__(self, lower_bound=-np.inf, upper_bound=np.inf, inverse_image=False, post_load=True,
                  final_scale_value=None):
@@ -433,6 +480,7 @@ class Threshold_Images(Image_Processor):
                 else:
                     image = -1*image
         return image, annotation
+
 
 class Add_Noise_To_Images(Image_Processor):
     def __init__(self, by_patient=False, variation=None):
