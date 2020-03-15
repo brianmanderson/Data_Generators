@@ -814,7 +814,7 @@ class Data_Set_Reader(object):
             elif self.verbose:
                 print(path)
                 print('Wrong path')
-        self.load_file_list = self.file_list[:]
+        self.load_file_list = []
         self.make_patient_list()
 
     def make_patient_list(self):
@@ -869,7 +869,7 @@ class Data_Set_Reader(object):
             else:
                 files = {}
             if np.any(values):
-                if np.max(np.abs(slice_num-values) < self.expansion):
+                if np.min(np.abs(slice_num-values)) <= self.expansion:
                     files[slice_num] = file
             elif slice_num >= start and slice_num <= stop:
                 files[slice_num] = file
@@ -880,12 +880,12 @@ class Data_Set_Reader(object):
             file_names = [self.patient_dict[pat][key] for key in self.patient_dict[pat].keys()]
             file_names = list(np.asarray(file_names)[indexes])
             self.patient_dict[pat] = file_names
-            self.file_list += self.patient_dict[pat]
+            self.load_file_list += self.patient_dict[pat]
 
 
 class Data_Generator_Class(Sequence):
     def __init__(self, by_patient=False, whole_patient=False, wanted_indexes=None,data_paths=None, num_patients=1,
-                 expansion=0,shuffle=False, batch_size=1, save_and_reload=True, max_batch_size=np.inf,
+                 expansion=np.inf,shuffle=False, batch_size=1, save_and_reload=True, max_batch_size=np.inf,
                  image_processors=None, split_data_evenly_from_paths=False, random_start=True, by_patient_2D=False):
         '''
         :param by_patient: (True/False), load by 3D patient or 2D slices
@@ -941,7 +941,7 @@ class Data_Generator_Class(Sequence):
             models[path] = Data_Set_Reader(path=path, expansion=expansion, wanted_indexes=wanted_indexes)
             self.patient_dict[path] = models[path].patient_dict
             self.patient_dict_indexes.update(models[path].start_stop_dict)
-            self.file_list += models[path].file_list
+            self.file_list += models[path].load_file_list
         return models
 
     def get_image_lists(self):

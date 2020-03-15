@@ -143,21 +143,25 @@ class Pull_Cube_From_Image(Image_Processor):
 
 
 class Clip_Images(Image_Processor):
-    def __init__(self, annotations_index=(1,2), bounding_box_expansion=(10,10,10), power_val_z=1, power_val_x=1,
+    def __init__(self, annotations_index=None, bounding_box_expansion=(10,10,10), power_val_z=1, power_val_x=1,
                  power_val_y=1):
         self.annotations_index = annotations_index
         self.bounding_box_expansion = bounding_box_expansion
         self.power_val_z, self.power_val_x, self.power_val_y = power_val_z, power_val_x, power_val_y
 
     def post_load_process(self, images, annotations):
-        liver = np.sum(annotations[...,self.annotations_index],axis=-1)
-        z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
-        z_start = max([0,z_start-self.bounding_box_expansion[0]])
-        z_stop = min([z_stop+self.bounding_box_expansion[0],images.shape[0]])
-        r_start = max([0,r_start-self.bounding_box_expansion[1]])
-        r_stop = min([images.shape[1],r_stop+self.bounding_box_expansion[1]])
-        c_start = max([0,c_start-self.bounding_box_expansion[2]])
-        c_stop = min([images.shape[2],c_stop+self.bounding_box_expansion[2]])
+        if self.annotations_index:
+            liver = np.sum(annotations[...,self.annotations_index],axis=-1)
+            z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
+            z_start = max([0,z_start-self.bounding_box_expansion[0]])
+            z_stop = min([z_stop+self.bounding_box_expansion[0],images.shape[0]])
+            r_start = max([0,r_start-self.bounding_box_expansion[1]])
+            r_stop = min([images.shape[1],r_stop+self.bounding_box_expansion[1]])
+            c_start = max([0,c_start-self.bounding_box_expansion[2]])
+            c_stop = min([images.shape[2],c_stop+self.bounding_box_expansion[2]])
+        else:
+            z_stop, r_stop, c_stop, _ = images.shape
+            z_start, r_start, c_start = 0, 0, 0
         z_total, r_total, c_total = z_stop - z_start, r_stop - r_start, c_stop - c_start
         remainder_z, remainder_r, remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
                                                 self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
