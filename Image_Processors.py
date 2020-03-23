@@ -71,6 +71,10 @@ class Image_Processor(object):
         '''
         return images, annotations
 
+    def get_patient_id(self, image_name):
+        self.patient_id = image_name
+        return None
+
 
 class Bring_Parotids_Together(Image_Processor):
     def preload_single_image_process(self, image, annotation):
@@ -213,38 +217,58 @@ class Resample_Images(Image_Processor):
 
 
 class Fuzzy_Segment_Liver_Lobes(Image_Processor):
-    def __init__(self, variation=None, spacing=(1,1,5)):
+    def __init__(self, variation=None, spacing=(1,1,5), run_as_preload=False):
         '''
         :param variation: margin to expand region, mm. np.arange(start=0, stop=1, step=1)
         :param spacing: Spacing of images, assumes this is constance
         '''
         self.variation = variation
         self.spacing = spacing
+        self.run_as_preload = run_as_preload
         self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
+        self.patient_dictionary = {}
 
     def make_fuzzy_label(self, annotation, variation):
-        distance_map = np.zeros(annotation.shape)
-        for i in range(1, annotation.shape[-1]):
-            temp_annotation = annotation[..., i].astype('int')
-            distance_map[..., i] = self.Fill_Missing_Segments_Class.run_distance_map(temp_annotation,
-                                                                                     spacing=self.spacing)
-        distance_map[distance_map > 0] = 0
-        distance_map = np.abs(distance_map)
+        out_shape = annotation.shape
+        annotation = np.squeeze(annotation)
+        if self.patient_id not in self.patient_dictionary:
+            distance_map = np.zeros(annotation.shape)
+            for i in range(1, annotation.shape[-1]):
+                temp_annotation = annotation[..., i].astype('int')
+                distance_map[..., i] = self.Fill_Missing_Segments_Class.run_distance_map(temp_annotation,
+                                                                                         spacing=self.spacing)
+            distance_map[distance_map > 0] = 0
+            distance_map = np.abs(distance_map)
+            if not self.run_as_preload:
+                self.patient_dictionary[self.patient_id] = copy.deepcopy(distance_map)
+        if not self.run_as_preload:
+            distance_map = copy.deepcopy(self.patient_dictionary[self.patient_id])
         distance_map[distance_map > variation] = variation  # Anything greater than 10 mm away set to 0
         distance_map = 1 - distance_map / variation
         distance_map[annotation[..., 0] == 1] = 0
         distance_map[..., 0] = annotation[..., 0]
         total = np.sum(distance_map, axis=-1)
         distance_map /= total[..., None]
-        return distance_map
+        return np.reshape(distance_map, out_shape)
 
-    def post_load_process(self, images, annotations):
+    def post_load_all_patient_process(self, images, annotations):
         '''
         :param images: Images set to values of 0 to max - min. This is done
         :param annotations:
         :return:
         '''
-        if self.variation is not None:
+        if self.variation is not None and not self.run_as_preload:
+            variation = self.variation[np.random.randint(len(self.variation))]
+            annotations = self.make_fuzzy_label(annotations, variation)
+        return images, annotations
+
+    def pre_load_whole_image_process(self, images, annotations):
+        '''
+        :param images: Images set to values of 0 to max - min. This is done
+        :param annotations:
+        :return:
+        '''
+        if self.variation is not None and self.run_as_preload:
             variation = self.variation[np.random.randint(len(self.variation))]
             annotations = self.make_fuzzy_label(annotations, variation)
         return images, annotations
