@@ -62,7 +62,7 @@ class Image_Processor(object):
         '''
         return images, annotations
 
-    def post_load_all_patient_process(self, images, annotations):
+    def post_load_all_patient_process(self, images, annotations, patient_id=None):
         '''
         This is for image processes which go across the entire patient stack,
         :param images: [#patients, z_images, n_row, m_col, channel]
@@ -70,10 +70,6 @@ class Image_Processor(object):
         :return:
         '''
         return images, annotations
-
-    def get_patient_id(self, image_name):
-        self.patient_id = image_name
-        return None
 
 
 class Bring_Parotids_Together(Image_Processor):
@@ -98,7 +94,7 @@ class Mask_Pred_Within_Annotation(Image_Processor):
         self.remove_liver_layer_indexes = remove_liver_layer_indexes
         self.threshold_value = threshold_value
 
-    def post_load_all_patient_process(self, images, annotations):
+    def post_load_all_patient_process(self, images, annotations, patient_id=None):
         if self.mask_image:
             images[annotations[...,0] == 1] = self.threshold_value
         if self.return_mask:
@@ -228,10 +224,10 @@ class Fuzzy_Segment_Liver_Lobes(Image_Processor):
         self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
         self.patient_dictionary = {}
 
-    def make_fuzzy_label(self, annotation, variation):
+    def make_fuzzy_label(self, annotation, variation, patient_id):
         out_shape = annotation.shape
         annotation = np.squeeze(annotation)
-        if self.patient_id not in self.patient_dictionary:
+        if patient_id not in self.patient_dictionary:
             distance_map = np.zeros(annotation.shape)
             for i in range(1, annotation.shape[-1]):
                 temp_annotation = annotation[..., i].astype('int')
@@ -240,9 +236,9 @@ class Fuzzy_Segment_Liver_Lobes(Image_Processor):
             distance_map[distance_map > 0] = 0
             distance_map = np.abs(distance_map)
             if not self.run_as_preload:
-                self.patient_dictionary[self.patient_id] = copy.deepcopy(distance_map)
+                self.patient_dictionary[patient_id] = copy.deepcopy(distance_map)
         if not self.run_as_preload:
-            distance_map = copy.deepcopy(self.patient_dictionary[self.patient_id])
+            distance_map = copy.deepcopy(self.patient_dictionary[patient_id])
         distance_map[distance_map > variation] = variation  # Anything greater than 10 mm away set to 0
         distance_map = 1 - distance_map / variation
         distance_map[annotation[..., 0] == 1] = 0
@@ -251,7 +247,7 @@ class Fuzzy_Segment_Liver_Lobes(Image_Processor):
         distance_map /= total[..., None]
         return np.reshape(distance_map, out_shape)
 
-    def post_load_all_patient_process(self, images, annotations):
+    def post_load_all_patient_process(self, images, annotations, patient_id=None):
         '''
         :param images: Images set to values of 0 to max - min. This is done
         :param annotations:
@@ -259,7 +255,7 @@ class Fuzzy_Segment_Liver_Lobes(Image_Processor):
         '''
         if self.variation is not None and not self.run_as_preload:
             variation = self.variation[np.random.randint(len(self.variation))]
-            annotations = self.make_fuzzy_label(annotations, variation)
+            annotations = self.make_fuzzy_label(annotations, variation, patient_id)
         return images, annotations
 
     def pre_load_whole_image_process(self, images, annotations):

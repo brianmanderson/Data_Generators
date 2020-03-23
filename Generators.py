@@ -1123,8 +1123,6 @@ class Data_Generator_Class(Sequence):
             for i in range(len(image_names_all)):
                 image_names = image_names_all[i]
                 patient_id = self.get_patient_name(image_names)
-                for image_processor in self.image_processors:
-                    image_processor.get_patient_id(patient_id)
                 if patient_id not in self.preload_patient_dict:
                     self.patient_preload_process(image_names)
                     self.preload_patient_dict.append(patient_id)
@@ -1142,7 +1140,9 @@ class Data_Generator_Class(Sequence):
                     images_out = np.concatenate([images_out, images], axis=0)
                     annotations_out = np.concatenate([annotations_out, annotations], axis=0)
                 for image_processor in self.image_processors:
-                    images_out, annotations_out = image_processor.post_load_all_patient_process(images_out, annotations_out)
+                    images_out, annotations_out = image_processor.post_load_all_patient_process(images_out,
+                                                                                                annotations_out,
+                                                                                                patient_id=patient_id)
             if self.by_patient_2D:
                 images_out, annotations_out = images_out[0,...], annotations_out[0,...]
         else:
