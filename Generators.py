@@ -1142,6 +1142,7 @@ class Data_Generator_Class(Sequence):
             broken_up = file.split('/')
         print('\n{}\n'.format(broken_up))
         path_key = os.path.abspath(os.path.join(*broken_up[:-1]))
+        print('\n{}\n'.format(path_key))
         file_key = ''.join(['{}_'.format(i) for i in broken_up[-1].split('_')[:-2]])[:-1]
         return path_key, file_key
 
