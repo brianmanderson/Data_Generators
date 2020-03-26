@@ -1148,6 +1148,8 @@ class Data_Generator_Class(Sequence):
             for i in range(len(image_names_all)):
                 image_names = image_names_all[i]
                 path_key, file_key = self.get_patient_name(image_names)
+                print(path_key)
+                print(file_key)
                 if file_key not in self.preload_patient_dict[path_key]:
                     print(file_key)
                     self.patient_preload_process(self.patient_dict[path_key][file_key])
