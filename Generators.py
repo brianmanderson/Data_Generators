@@ -929,6 +929,7 @@ class Data_Generator_Class(Sequence):
         self.patient_dict = {}
         self.patient_dict_indexes = {}
         self.file_list = []
+        self.expansion = expansion
         self.training_models = self.get_training_models(data_paths,expansion, wanted_indexes)
         self.get_image_lists()
 
@@ -975,7 +976,7 @@ class Data_Generator_Class(Sequence):
                                     self.image_list.append(batch_images)
                                     pulled = True
                                     batch_images = []
-                            if not pulled:
+                            if not pulled and batch > self.expansion:
                                 self.image_list.append(batch_images)
 
         else:
