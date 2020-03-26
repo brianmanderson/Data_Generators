@@ -809,7 +809,7 @@ class Data_Set_Reader(object):
                     if file.find('_annotation.') == -1:
                         if file.find('.nii.gz') != -1:
                             self.file_ext = '.nii.gz'
-                        self.file_list.append(os.path.join(path, file))
+                        self.file_list.append(os.path.abspath(os.path.join(path, file)))
             elif self.verbose:
                 print(path)
                 print('Wrong path')
