@@ -941,7 +941,6 @@ class Data_Generator_Class(Sequence):
             path = os.path.abspath(path)
             if len(os.listdir(path)) == 0:
                 print('Nothing in data path:' + path)
-            print('\n{}\n'.format(path))
             self.preload_patient_dict[path] = []
             models[path] = Data_Set_Reader(path=path, expansion=expansion, wanted_indexes=wanted_indexes)
             self.patient_dict[path] = models[path].patient_dict
@@ -1136,15 +1135,12 @@ class Data_Generator_Class(Sequence):
 
     def get_patient_name(self, image_names):
         file = image_names[0]
-        print('\n{}\n'.format(file))
         broken_up = file.split('\\')
         if len(broken_up) == 1:
             broken_up = file.split('/')
             broken_up[1] = '/' + broken_up[1]
             broken_up = broken_up[1:]
-        print('\n{}\n'.format(broken_up))
         path_key = os.path.abspath(os.path.join(*broken_up[:-1]))
-        print('\n{}\n'.format(path_key))
         file_key = ''.join(['{}_'.format(i) for i in broken_up[-1].split('_')[:-2]])[:-1]
         return path_key, file_key
 
@@ -1156,7 +1152,6 @@ class Data_Generator_Class(Sequence):
                 image_names = image_names_all[i]
                 path_key, file_key = self.get_patient_name(image_names)
                 if file_key not in self.preload_patient_dict[path_key]:
-                    print(file_key)
                     self.patient_preload_process(self.patient_dict[path_key][file_key])
                     self.preload_patient_dict[path_key].append(file_key)
                 if self.whole_patient:
