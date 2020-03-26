@@ -1136,9 +1136,11 @@ class Data_Generator_Class(Sequence):
 
     def get_patient_name(self, image_names):
         file = image_names[0]
+        print('\n{}\n'.format(file))
         broken_up = file.split('\\')
         if len(broken_up) == 1:
             broken_up = file.split('/')
+        print('\n{}\n'.format(broken_up))
         path_key = os.path.abspath(os.path.join(*broken_up[:-1]))
         file_key = ''.join(['{}_'.format(i) for i in broken_up[-1].split('_')[:-2]])[:-1]
         return path_key, file_key
@@ -1150,8 +1152,6 @@ class Data_Generator_Class(Sequence):
             for i in range(len(image_names_all)):
                 image_names = image_names_all[i]
                 path_key, file_key = self.get_patient_name(image_names)
-                print(path_key)
-                print(file_key)
                 if file_key not in self.preload_patient_dict[path_key]:
                     print(file_key)
                     self.patient_preload_process(self.patient_dict[path_key][file_key])
