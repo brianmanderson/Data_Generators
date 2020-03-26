@@ -68,7 +68,6 @@ class image_loader(object):
         self.by_patient = by_patient
         self.final_steps = final_steps
         self.all_images = all_images
-        self.preload_patient_dict = []
 
     def load_image(self, batch_size=0, image_names=None):
         add = 0
@@ -886,7 +885,8 @@ class Data_Set_Reader(object):
 class Data_Generator_Class(Sequence):
     def __init__(self, by_patient=False, whole_patient=False, wanted_indexes=None,data_paths=None, num_patients=1,
                  expansion=np.inf,shuffle=False, batch_size=1, save_and_reload=True, max_batch_size=np.inf,
-                 image_processors=None, split_data_evenly_from_paths=False, random_start=True, by_patient_2D=False):
+                 image_processors=None, split_data_evenly_from_paths=False, random_start=True, by_patient_2D=False,
+                 random_wiggle_3D=0):
         '''
         :param by_patient: (True/False), load by 3D patient or 2D slices
         :param whole_patient: load entire patient?
@@ -901,6 +901,7 @@ class Data_Generator_Class(Sequence):
         :param split_data_evenly_from_paths: in beta
         :param random_start: default, other options in beta
         '''
+        self.random_wiggle_3D = random_wiggle_3D
         if by_patient_2D:
             assert num_patients == 1, 'Specified that 2D image output is wanted, but num_patients is > 1'
         self.by_patient_2D = by_patient_2D
@@ -914,7 +915,7 @@ class Data_Generator_Class(Sequence):
         if image_processors is None:
             image_processors = []
         self.image_dictionary = {}
-        self.preload_patient_dict = []
+        self.preload_patient_dict = {}
         self.image_processors = image_processors
         self.save_and_reload = save_and_reload
         self.max_patients = np.inf
@@ -938,6 +939,7 @@ class Data_Generator_Class(Sequence):
                 path = os.path.join(path,'Single_Images3D') #Make them all 3D
             if len(os.listdir(path)) == 0:
                 print('Nothing in data path:' + path)
+            self.preload_patient_dict[path] = []
             models[path] = Data_Set_Reader(path=path, expansion=expansion, wanted_indexes=wanted_indexes)
             self.patient_dict[path] = models[path].patient_dict
             self.patient_dict_indexes.update(models[path].start_stop_dict)
@@ -953,7 +955,29 @@ class Data_Generator_Class(Sequence):
             if not self.split_data_evenly_from_paths:
                 for path in self.patient_dict.keys():
                     for patient in self.patient_dict[path].keys():
-                        self.image_list.append(self.patient_dict[path][patient])
+                        patient_images = self.patient_dict[path][patient]
+                        if self.whole_patient:
+                            self.image_list.append(patient_images)
+                        else:
+                            start = 0
+                            if self.random_wiggle_3D != 0:
+                                start = np.random.randint(self.random_wiggle_3D)
+                            batch = 0
+                            batch_images = []
+                            pulled = False
+                            for i in range(start, len(patient_images)):
+                                if batch < self.batch_size:
+                                    batch_images.append(patient_images[i])
+                                    pulled = False
+                                    batch += 1
+                                else:
+                                    batch = 0
+                                    self.image_list.append(batch_images)
+                                    pulled = True
+                                    batch_images = []
+                            if not pulled:
+                                self.image_list.append(batch_images)
+
         else:
             if not self.split_data_evenly_from_paths:
                 self.image_list = self.file_list
@@ -1112,9 +1136,9 @@ class Data_Generator_Class(Sequence):
         broken_up = file.split('\\')
         if len(broken_up) == 1:
             broken_up = file.split('/')
-        broken_up = broken_up[-1].split('_')
-        patient_id = ''.join(broken_up[:-2])
-        return patient_id
+        path_key = os.path.abspath(os.path.join(*broken_up[:-1]))
+        file_key = ''.join(['{}_'.format(i) for i in broken_up[-1].split('_')[:-2]])[:-1]
+        return path_key, file_key
 
     def load_images(self,index):
         batch_size = self.batch_size
@@ -1122,10 +1146,10 @@ class Data_Generator_Class(Sequence):
             image_names_all = self.file_batches[index]
             for i in range(len(image_names_all)):
                 image_names = image_names_all[i]
-                patient_id = self.get_patient_name(image_names)
-                if patient_id not in self.preload_patient_dict:
-                    self.patient_preload_process(image_names)
-                    self.preload_patient_dict.append(patient_id)
+                path_key, file_key = self.get_patient_name(image_names)
+                if file_key not in self.preload_patient_dict[path_key]:
+                    self.patient_preload_process(self.patient_dict[path_key][file_key])
+                    self.preload_patient_dict[path_key].append(file_key)
                 if self.whole_patient:
                     batch_size = len(image_names)
                 if batch_size > self.max_batch_size:
