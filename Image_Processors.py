@@ -144,10 +144,11 @@ class Pull_Cube_From_Image(Image_Processor):
 
 class Clip_Images(Image_Processor):
     def __init__(self, annotations_index=None, bounding_box_expansion=(10,10,10), power_val_z=1, power_val_x=1,
-                 power_val_y=1):
+                 power_val_y=1, min_images=None, min_rows=None, min_cols=None):
         self.annotations_index = annotations_index
         self.bounding_box_expansion = bounding_box_expansion
         self.power_val_z, self.power_val_x, self.power_val_y = power_val_z, power_val_x, power_val_y
+        self.min_images, self.min_rows, self.min_cols = min_images, min_rows, min_cols
 
     def post_load_process(self, images, annotations):
         if self.annotations_index:
@@ -167,11 +168,17 @@ class Clip_Images(Image_Processor):
                                                 self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
                                                 self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
         min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
+        if self.min_images is not None:
+            min_images = max([min_images,self.min_images])
+        if self.min_rows is not None:
+            min_rows = max([min_rows,self.min_rows])
+        if self.min_cols is not None:
+            min_cols = max([min_cols,self.min_cols])
         out_images = np.ones([min_images,min_rows,min_cols,images.shape[-1]])*np.min(images)
         out_annotations = np.zeros([min_images, min_rows, min_cols, annotations.shape[-1]])
         out_annotations[...,0] = 1
-        image_cube = images[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
-        annotation_cube = annotations[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
+        image_cube = images[z_start:z_start + min_images,r_start:r_start + min_rows,c_start:c_start + min_cols,...]
+        annotation_cube = annotations[z_start:z_start + min_images,r_start:r_start + min_rows,c_start:c_start + min_cols,...]
         img_shape = image_cube.shape
         out_images[:img_shape[0],:img_shape[1],:img_shape[2],...] = image_cube
         out_annotations[:img_shape[0],:img_shape[1],:img_shape[2],...] = annotation_cube
