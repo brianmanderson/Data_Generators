@@ -1166,7 +1166,7 @@ class Data_Generator_Class(Sequence):
                 for image_processor in self.image_processors:
                     images_out, annotations_out = image_processor.post_load_all_patient_process(images_out,
                                                                                                 annotations_out,
-                                                                                                patient_id=patient_id)
+                                                                                                patient_id=os.path.join(path_key,file_key))
             if self.by_patient_2D:
                 images_out, annotations_out = images_out[0,...], annotations_out[0,...]
         else:
