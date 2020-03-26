@@ -940,6 +940,7 @@ class Data_Generator_Class(Sequence):
                 path = os.path.join(path,'Single_Images3D') #Make them all 3D
             if len(os.listdir(path)) == 0:
                 print('Nothing in data path:' + path)
+            print('\n{}\n'.format(path))
             self.preload_patient_dict[path] = []
             models[path] = Data_Set_Reader(path=path, expansion=expansion, wanted_indexes=wanted_indexes)
             self.patient_dict[path] = models[path].patient_dict
