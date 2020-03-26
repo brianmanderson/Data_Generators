@@ -938,6 +938,7 @@ class Data_Generator_Class(Sequence):
         for path in data_paths:
             if path.find('Single_Images3D') == -1:
                 path = os.path.join(path,'Single_Images3D') #Make them all 3D
+            path = os.path.abspath(path)
             if len(os.listdir(path)) == 0:
                 print('Nothing in data path:' + path)
             print('\n{}\n'.format(path))
