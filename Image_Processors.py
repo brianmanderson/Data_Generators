@@ -95,6 +95,8 @@ class Mask_Pred_Within_Annotation(Image_Processor):
         self.threshold_value = threshold_value
 
     def post_load_all_patient_process(self, images, annotations, patient_id=None):
+        print(np.mean(images[annotations[...,1]==1]))
+        print(np.std(images[annotations[...,1]==1]))
         if self.mask_image:
             images[annotations[...,0] == 1] = self.threshold_value
         if self.return_mask:
@@ -418,14 +420,19 @@ class Normalize_to_Liver(Image_Processor):
     def pre_load_whole_image_process(self, images, annotations):
         liver = np.sum(annotations[..., 1:], axis=-1)
         data = images[liver == 1].flatten()
-        counts, bins = np.histogram(data, bins=1000)
+        counts, bins = np.histogram(data, bins=100)
+        bins = bins[:-1]
+        count_index = np.where(counts == np.max(counts))[0][-1]
+        peak = bins[count_index]
+        data_reduced = data[np.where((data>peak-150) & (data<peak+150))]
+        counts, bins = np.histogram(data_reduced, bins=1000)
         bins = bins[:-1]
         count_index = np.where(counts == np.max(counts))[0][-1]
         half_counts = counts - np.max(counts) // 2
-        half_upper = np.abs(half_counts[count_index:])
+        half_upper = np.abs(half_counts[count_index+1:])
         max_50 = np.where(half_upper == np.min(half_upper))[0][0]
 
-        half_lower = np.abs(half_counts[:count_index][-1::-1])
+        half_lower = np.abs(half_counts[:count_index-1][-1::-1])
         min_50 = np.where(half_lower == np.min(half_lower))[0][0]
 
         min_values = bins[count_index - min_50]
