@@ -95,6 +95,7 @@ class Pull_Cube_sitk(Image_Processor):
 
     def post_load_all_patient_process(self, images, annotations, patient_id=None):
         if self.annotation_index is not None:
+            images_shape = images.shape
             images = np.squeeze(images)
             annotations = np.squeeze(annotations)
             images_size, annotations_size = images.shape, annotations.shape
@@ -122,6 +123,9 @@ class Pull_Cube_sitk(Image_Processor):
                 img_shape = image_cube.shape
                 out_images[index,:img_shape[0], :img_shape[1], :img_shape[2], ...] = image_cube
                 out_annotations[index,:img_shape[0], :img_shape[1], :img_shape[2], ...] = annotation_cube
+            out_images = out_images[...,None]
+            if out_images.shape[-1] < images_shape[-1]:
+                out_images = np.repeat(out_images,axis=-1,repeats=images_shape[-1])
             return out_images, out_annotations
         else:
             return images, annotations
