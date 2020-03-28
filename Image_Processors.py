@@ -85,6 +85,48 @@ class Bring_Parotids_Together(Image_Processor):
         return image, annotation
 
 
+class Pull_Cube_sitk(Image_Processor):
+    def __init__(self, annotation_index=None, max_cubes=10, z_images=16, rows=100, cols=100):
+        self.annotation_index = annotation_index
+        self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
+        self.stats = sitk.LabelShapeStatisticsImageFilter()
+        self.max_cubes = max_cubes
+        self.z_images, self.rows, self.cols = z_images, rows, cols
+
+    def post_load_all_patient_process(self, images, annotations, patient_id=None):
+        if self.annotation_index is not None:
+            images = np.squeeze(images)
+            annotations = np.squeeze(annotations)
+            images_size, annotations_size = images.shape, annotations.shape
+            seed_annotations = np.squeeze(annotations[...,self.annotation_index])
+            thresholded_image = sitk.GetImageFromArray(seed_annotations.astype('int'))
+            connected_image = self.Connected_Component_Filter.Execute(thresholded_image)
+            self.stats.Execute(connected_image)
+            seeds = [self.stats.GetCentroid(l) for l in self.stats.GetLabels()]
+            seeds = np.asarray([thresholded_image.TransformPhysicalPointToIndex(i) for i in seeds])
+            perm = np.arange(len(seeds))
+            np.random.shuffle(perm)
+            seeds = seeds[perm]
+            num_cubes = min([len(seeds),self.max_cubes])
+            out_images = np.ones([num_cubes, self.z_images, self.rows, self.cols]) * np.min(images)
+            out_annotations = np.zeros([num_cubes, self.z_images, self.rows, self.cols, annotations_size[-1]])
+            for index in range(num_cubes):
+                seed = seeds[index]
+                z_start, z_stop = max([0,seed[2]-self.z_images//2]), min([images_size[0],seed[2]+self.z_images//2])
+                r_start, r_stop = max([0, seed[1] - self.rows // 2]), min(
+                    [images_size[1], seed[1] + self.rows // 2])
+                c_start, c_stop = max([0, seed[0] - self.cols // 2]), min(
+                    [images_size[2], seed[0] + self.cols // 2])
+                image_cube = images[z_start:z_stop, r_start:r_stop, c_start:c_stop]
+                annotation_cube = annotations[z_start:z_stop, r_start:r_stop, c_start:c_stop, ...]
+                img_shape = image_cube.shape
+                out_images[index,:img_shape[0], :img_shape[1], :img_shape[2], ...] = image_cube
+                out_annotations[index,:img_shape[0], :img_shape[1], :img_shape[2], ...] = annotation_cube
+            return out_images, out_annotations
+        else:
+            return images, annotations
+
+
 class Mask_Pred_Within_Annotation(Image_Processor):
     def __init__(self, return_mask=False, liver_box=False, mask_image=False, remove_liver_layer_indexes=None,
                  threshold_value=0):

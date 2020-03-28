@@ -864,6 +864,7 @@ class Data_Generator_Class(Sequence):
 
     def get_training_models(self, data_paths, expansion, wanted_indexes):
         models = {}
+        self.start_stop_dicts = {}
         for path in data_paths:
             if path.find('Single_Images3D') == -1:
                 path = os.path.join(path,'Single_Images3D') #Make them all 3D
@@ -871,7 +872,9 @@ class Data_Generator_Class(Sequence):
             if len(os.listdir(path)) == 0:
                 print('Nothing in data path:' + path)
             self.preload_patient_dict[path] = []
-            models[path] = Data_Set_Reader(path=path, expansion=expansion, wanted_indexes=wanted_indexes)
+            data_reader = Data_Set_Reader(path=path, expansion=expansion, wanted_indexes=wanted_indexes)
+            models[path] = data_reader
+            self.start_stop_dicts[path] = data_reader.start_stop_dict
             self.patient_dict[path] = models[path].patient_dict
             self.patient_dict_indexes.update(models[path].start_stop_dict)
             self.file_list += models[path].load_file_list
