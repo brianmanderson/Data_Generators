@@ -88,22 +88,22 @@ class Bring_Parotids_Together(Image_Processor):
 class Pull_Cube_sitk(Image_Processor):
     def __init__(self, annotation_index=None, max_cubes=10, z_images=16, rows=100, cols=100):
         self.annotation_index = annotation_index
-        self.Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
-        self.stats = sitk.LabelShapeStatisticsImageFilter()
         self.max_cubes = max_cubes
         self.z_images, self.rows, self.cols = z_images, rows, cols
 
     def post_load_all_patient_process(self, images, annotations, patient_id=None):
         if self.annotation_index is not None:
+            Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
+            stats = sitk.LabelShapeStatisticsImageFilter()
             images_shape = images.shape
             images = np.squeeze(images)
             annotations = np.squeeze(annotations)
             images_size, annotations_size = images.shape, annotations.shape
             seed_annotations = np.squeeze(annotations[...,self.annotation_index])
             thresholded_image = sitk.GetImageFromArray(seed_annotations.astype('int'))
-            connected_image = self.Connected_Component_Filter.Execute(thresholded_image)
-            self.stats.Execute(connected_image)
-            seeds = [self.stats.GetCentroid(l) for l in self.stats.GetLabels()]
+            connected_image = Connected_Component_Filter.Execute(thresholded_image)
+            stats.Execute(connected_image)
+            seeds = [stats.GetCentroid(l) for l in stats.GetLabels()]
             seeds = np.asarray([thresholded_image.TransformPhysicalPointToIndex(i) for i in seeds])
             perm = np.arange(len(seeds))
             np.random.shuffle(perm)
