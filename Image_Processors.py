@@ -137,8 +137,6 @@ class Mask_Pred_Within_Annotation(Image_Processor):
         self.threshold_value = threshold_value
 
     def post_load_all_patient_process(self, images, annotations, patient_id=None):
-        print(np.mean(images[annotations[...,1]==1]))
-        print(np.std(images[annotations[...,1]==1]))
         if self.mask_image:
             images[annotations[...,0] == 1] = self.threshold_value
         if self.return_mask:
