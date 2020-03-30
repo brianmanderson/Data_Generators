@@ -86,7 +86,7 @@ class Bring_Parotids_Together(Image_Processor):
 
 
 class Pull_Cube_sitk(Image_Processor):
-    def __init__(self, annotation_index=None, max_cubes=10, z_images=16, rows=100, cols=100, shuffle=True,
+    def __init__(self, annotation_index=None, max_cubes=10, z_images=None, rows=100, cols=100, shuffle=True,
                  largest=False):
         self.annotation_index = annotation_index
         self.max_cubes = max_cubes
@@ -209,7 +209,10 @@ class Clip_Images(Image_Processor):
 
     def post_load_process(self, images, annotations):
         if self.annotations_index:
-            liver = np.sum(annotations[...,self.annotations_index],axis=-1)
+            if len(self.annotations_index)>1:
+                liver = np.sum(annotations[...,self.annotations_index],axis=-1)
+            else:
+                liver = annotations[..., self.annotations_index]
             z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
             z_start = max([0,z_start-self.bounding_box_expansion[0]])
             z_stop = min([z_stop+self.bounding_box_expansion[0],images.shape[0]])
@@ -224,6 +227,30 @@ class Clip_Images(Image_Processor):
         remainder_z, remainder_r, remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
                                                 self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
                                                 self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
+        if remainder_z > 0:
+            z_start = max([0, z_start - remainder_z])
+            z_total = z_stop - z_start
+            remainder_z = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0
+        if remainder_z > 0:
+            z_stop = min([z_stop + remainder_z, images.shape[0]])
+            z_total, r_total, c_total = z_stop - z_start, r_stop - r_start, c_stop - c_start
+            remainder_z = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0
+        if remainder_r > 0:
+            r_start = max([0, r_start - remainder_r])
+            r_total = r_stop - r_start
+            remainder_r = self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0
+        if remainder_r > 0:
+            r_stop = min([r_stop + remainder_r, images.shape[1]])
+            r_total = r_stop - r_start
+            remainder_r = self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0
+        if remainder_c > 0:
+            c_start = max([0, c_start - remainder_c])
+            c_total = c_stop - c_start
+            remainder_c = self.power_val_y - r_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
+        if remainder_c > 0:
+            c_stop = min([c_stop + remainder_c, images.shape[2]])
+            c_total = c_stop - c_start
+            remainder_c = self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
         min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
         if self.min_images is not None:
             min_images = max([min_images,self.min_images])
