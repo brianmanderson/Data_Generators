@@ -62,7 +62,7 @@ class Image_Processor(object):
         '''
         return images, annotations
 
-    def post_load_all_patient_process(self, images, annotations):
+    def post_load_all_patient_process(self, images, annotations, patient_id=None):
         '''
         This is for image processes which go across the entire patient stack,
         :param images: [#patients, z_images, n_row, m_col, channel]
@@ -70,6 +70,65 @@ class Image_Processor(object):
         :return:
         '''
         return images, annotations
+
+
+class Bring_Parotids_Together(Image_Processor):
+    def preload_single_image_process(self, image, annotation):
+        '''
+        This is for image processes done loading on a slice by slice basis that only need to be done once, like
+        normalizing a CT slice with a mean and std
+        :param image: Some image of shape [n_row, m_col]
+        :param annotation: Some image of shape [n_row, m_col]
+        :return:
+        '''
+        annotation[annotation>1] = 1
+        return image, annotation
+
+
+class Pull_Cube_sitk(Image_Processor):
+    def __init__(self, annotation_index=None, max_cubes=10, z_images=16, rows=100, cols=100):
+        self.annotation_index = annotation_index
+        self.max_cubes = max_cubes
+        self.z_images, self.rows, self.cols = z_images, rows, cols
+
+    def post_load_all_patient_process(self, images, annotations, patient_id=None):
+        if self.annotation_index is not None:
+            Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
+            stats = sitk.LabelShapeStatisticsImageFilter()
+            images_shape = images.shape
+            images = np.squeeze(images)
+            annotations = np.squeeze(annotations)
+            images_size, annotations_size = images.shape, annotations.shape
+            seed_annotations = np.squeeze(annotations[...,self.annotation_index])
+            thresholded_image = sitk.GetImageFromArray(seed_annotations.astype('int'))
+            connected_image = Connected_Component_Filter.Execute(thresholded_image)
+            stats.Execute(connected_image)
+            seeds = [stats.GetCentroid(l) for l in stats.GetLabels()]
+            seeds = np.asarray([thresholded_image.TransformPhysicalPointToIndex(i) for i in seeds])
+            perm = np.arange(len(seeds))
+            np.random.shuffle(perm)
+            seeds = seeds[perm]
+            num_cubes = min([len(seeds),self.max_cubes])
+            out_images = np.ones([num_cubes, self.z_images, self.rows, self.cols]) * np.min(images)
+            out_annotations = np.zeros([num_cubes, self.z_images, self.rows, self.cols, annotations_size[-1]])
+            for index in range(num_cubes):
+                seed = seeds[index]
+                z_start, z_stop = max([0,seed[2]-self.z_images//2]), min([images_size[0],seed[2]+self.z_images//2])
+                r_start, r_stop = max([0, seed[1] - self.rows // 2]), min(
+                    [images_size[1], seed[1] + self.rows // 2])
+                c_start, c_stop = max([0, seed[0] - self.cols // 2]), min(
+                    [images_size[2], seed[0] + self.cols // 2])
+                image_cube = images[z_start:z_stop, r_start:r_stop, c_start:c_stop]
+                annotation_cube = annotations[z_start:z_stop, r_start:r_stop, c_start:c_stop, ...]
+                img_shape = image_cube.shape
+                out_images[index,:img_shape[0], :img_shape[1], :img_shape[2], ...] = image_cube
+                out_annotations[index,:img_shape[0], :img_shape[1], :img_shape[2], ...] = annotation_cube
+            out_images = out_images[...,None]
+            if out_images.shape[-1] < images_shape[-1]:
+                out_images = np.repeat(out_images,axis=-1,repeats=images_shape[-1])
+            return out_images, out_annotations
+        else:
+            return images, annotations
 
 
 class Mask_Pred_Within_Annotation(Image_Processor):
@@ -81,7 +140,7 @@ class Mask_Pred_Within_Annotation(Image_Processor):
         self.remove_liver_layer_indexes = remove_liver_layer_indexes
         self.threshold_value = threshold_value
 
-    def post_load_all_patient_process(self, images, annotations):
+    def post_load_all_patient_process(self, images, annotations, patient_id=None):
         if self.mask_image:
             images[annotations[...,0] == 1] = self.threshold_value
         if self.return_mask:
@@ -130,31 +189,42 @@ class Pull_Cube_From_Image(Image_Processor):
 
 
 class Clip_Images(Image_Processor):
-    def __init__(self, annotations_index=(1,2), bounding_box_expansion=(10,10,10), power_val_z=1, power_val_x=1,
-                 power_val_y=1):
+    def __init__(self, annotations_index=None, bounding_box_expansion=(10,10,10), power_val_z=1, power_val_x=1,
+                 power_val_y=1, min_images=None, min_rows=None, min_cols=None):
         self.annotations_index = annotations_index
         self.bounding_box_expansion = bounding_box_expansion
         self.power_val_z, self.power_val_x, self.power_val_y = power_val_z, power_val_x, power_val_y
+        self.min_images, self.min_rows, self.min_cols = min_images, min_rows, min_cols
 
     def post_load_process(self, images, annotations):
-        liver = np.sum(annotations[...,self.annotations_index],axis=-1)
-        z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
-        z_start = max([0,z_start-self.bounding_box_expansion[0]])
-        z_stop = min([z_stop+self.bounding_box_expansion[0],images.shape[0]])
-        r_start = max([0,r_start-self.bounding_box_expansion[1]])
-        r_stop = min([images.shape[1],r_stop+self.bounding_box_expansion[1]])
-        c_start = max([0,c_start-self.bounding_box_expansion[2]])
-        c_stop = min([images.shape[2],c_stop+self.bounding_box_expansion[2]])
+        if self.annotations_index:
+            liver = np.sum(annotations[...,self.annotations_index],axis=-1)
+            z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
+            z_start = max([0,z_start-self.bounding_box_expansion[0]])
+            z_stop = min([z_stop+self.bounding_box_expansion[0],images.shape[0]])
+            r_start = max([0,r_start-self.bounding_box_expansion[1]])
+            r_stop = min([images.shape[1],r_stop+self.bounding_box_expansion[1]])
+            c_start = max([0,c_start-self.bounding_box_expansion[2]])
+            c_stop = min([images.shape[2],c_stop+self.bounding_box_expansion[2]])
+        else:
+            z_stop, r_stop, c_stop, _ = images.shape
+            z_start, r_start, c_start = 0, 0, 0
         z_total, r_total, c_total = z_stop - z_start, r_stop - r_start, c_stop - c_start
         remainder_z, remainder_r, remainder_c = self.power_val_z - z_total % self.power_val_z if z_total % self.power_val_z != 0 else 0, \
                                                 self.power_val_x - r_total % self.power_val_x if r_total % self.power_val_x != 0 else 0, \
                                                 self.power_val_y - c_total % self.power_val_y if c_total % self.power_val_y != 0 else 0
         min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
+        if self.min_images is not None:
+            min_images = max([min_images,self.min_images])
+        if self.min_rows is not None:
+            min_rows = max([min_rows,self.min_rows])
+        if self.min_cols is not None:
+            min_cols = max([min_cols,self.min_cols])
         out_images = np.ones([min_images,min_rows,min_cols,images.shape[-1]])*np.min(images)
         out_annotations = np.zeros([min_images, min_rows, min_cols, annotations.shape[-1]])
         out_annotations[...,0] = 1
-        image_cube = images[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
-        annotation_cube = annotations[z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
+        image_cube = images[z_start:z_start + min_images,r_start:r_start + min_rows,c_start:c_start + min_cols,...]
+        annotation_cube = annotations[z_start:z_start + min_images,r_start:r_start + min_rows,c_start:c_start + min_cols,...]
         img_shape = image_cube.shape
         out_images[:img_shape[0],:img_shape[1],:img_shape[2],...] = image_cube
         out_annotations[:img_shape[0],:img_shape[1],:img_shape[2],...] = annotation_cube
@@ -196,38 +266,58 @@ class Resample_Images(Image_Processor):
 
 
 class Fuzzy_Segment_Liver_Lobes(Image_Processor):
-    def __init__(self, variation=None, spacing=(1,1,5)):
+    def __init__(self, variation=None, spacing=(1,1,5), run_as_preload=False):
         '''
         :param variation: margin to expand region, mm. np.arange(start=0, stop=1, step=1)
         :param spacing: Spacing of images, assumes this is constance
         '''
         self.variation = variation
         self.spacing = spacing
+        self.run_as_preload = run_as_preload
         self.Fill_Missing_Segments_Class = Fill_Missing_Segments()
+        self.patient_dictionary = {}
 
-    def make_fuzzy_label(self, annotation, variation):
-        distance_map = np.zeros(annotation.shape)
-        for i in range(1, annotation.shape[-1]):
-            temp_annotation = annotation[..., i].astype('int')
-            distance_map[..., i] = self.Fill_Missing_Segments_Class.run_distance_map(temp_annotation,
-                                                                                     spacing=self.spacing)
-        distance_map[distance_map > 0] = 0
-        distance_map = np.abs(distance_map)
+    def make_fuzzy_label(self, annotation, variation, patient_id):
+        out_shape = annotation.shape
+        annotation = np.squeeze(annotation)
+        if patient_id not in self.patient_dictionary:
+            distance_map = np.zeros(annotation.shape)
+            for i in range(1, annotation.shape[-1]):
+                temp_annotation = annotation[..., i].astype('int')
+                distance_map[..., i] = self.Fill_Missing_Segments_Class.run_distance_map(temp_annotation,
+                                                                                         spacing=self.spacing)
+            distance_map[distance_map > 0] = 0
+            distance_map = np.abs(distance_map)
+            if not self.run_as_preload:
+                self.patient_dictionary[patient_id] = copy.deepcopy(distance_map)
+        if not self.run_as_preload:
+            distance_map = copy.deepcopy(self.patient_dictionary[patient_id])
         distance_map[distance_map > variation] = variation  # Anything greater than 10 mm away set to 0
         distance_map = 1 - distance_map / variation
         distance_map[annotation[..., 0] == 1] = 0
         distance_map[..., 0] = annotation[..., 0]
         total = np.sum(distance_map, axis=-1)
         distance_map /= total[..., None]
-        return distance_map
+        return np.reshape(distance_map, out_shape)
 
-    def post_load_process(self, images, annotations):
+    def post_load_all_patient_process(self, images, annotations, patient_id=None):
         '''
         :param images: Images set to values of 0 to max - min. This is done
         :param annotations:
         :return:
         '''
-        if self.variation is not None:
+        if self.variation is not None and not self.run_as_preload:
+            variation = self.variation[np.random.randint(len(self.variation))]
+            annotations = self.make_fuzzy_label(annotations, variation, patient_id)
+        return images, annotations
+
+    def pre_load_whole_image_process(self, images, annotations):
+        '''
+        :param images: Images set to values of 0 to max - min. This is done
+        :param annotations:
+        :return:
+        '''
+        if self.variation is not None and self.run_as_preload:
             variation = self.variation[np.random.randint(len(self.variation))]
             annotations = self.make_fuzzy_label(annotations, variation)
         return images, annotations
@@ -374,19 +464,58 @@ class Normalize_to_Liver(Image_Processor):
     def pre_load_whole_image_process(self, images, annotations):
         liver = np.sum(annotations[..., 1:], axis=-1)
         data = images[liver == 1].flatten()
-        counts, bins = np.histogram(data, bins=1000)
+        counts, bins = np.histogram(data, bins=100)
+        bins = bins[:-1]
+        count_index = np.where(counts == np.max(counts))[0][-1]
+        peak = bins[count_index]
+        data_reduced = data[np.where((data>peak-150) & (data<peak+150))]
+        counts, bins = np.histogram(data_reduced, bins=1000)
         bins = bins[:-1]
         count_index = np.where(counts == np.max(counts))[0][-1]
         half_counts = counts - np.max(counts) // 2
-        half_upper = np.abs(half_counts[count_index:])
+        half_upper = np.abs(half_counts[count_index+1:])
         max_50 = np.where(half_upper == np.min(half_upper))[0][0]
 
-        half_lower = np.abs(half_counts[:count_index][-1::-1])
+        half_lower = np.abs(half_counts[:count_index-1][-1::-1])
         min_50 = np.where(half_lower == np.min(half_lower))[0][0]
 
         min_values = bins[count_index - min_50]
         max_values = bins[count_index + max_50]
         data = data[np.where((data >= min_values) & (data <= max_values))]
+        mean_val, std_val = np.mean(data), np.std(data)
+        images = (images - mean_val)/std_val
+        return images, annotations
+
+
+class Normalize_MR(Image_Processor):
+    def __init__(self):
+        '''
+        This is a little tricky... We only want to perform this task once, since it requires potentially large
+        computation time, but it also requires that all individual image slices already be loaded
+        '''
+        # Now performing FWHM
+        xxx = 1
+
+
+    def pre_load_whole_image_process(self, images, annotations):
+        data = images[...]
+        counts, bins = np.histogram(data, bins=100)
+        count_index = 0
+        count_value = 0
+        while count_value/np.sum(counts) < .3:
+            count_value += counts[count_index]
+            count_index += 1
+        min_bin = bins[count_index]
+        # bins = bins[:-1]
+        # count_index = np.where(counts == np.max(counts))[0][-1]
+        # half_counts = counts - np.max(counts) // 2
+        # half_upper = np.abs(half_counts[count_index:])
+        # max_50 = np.where(half_upper == np.min(half_upper))[0][0]
+        #
+        # max_values = bins[count_index + max_50]
+        # min_values = bins[count_index] - (bins[count_index + max_50] - bins[count_index + max_50])
+        # data = data[np.where((data >= min_values) & (data <= max_values))]
+        data = data[data>min_bin]
         mean_val, std_val = np.mean(data), np.std(data)
         images = (images - mean_val)/std_val
         return images, annotations
@@ -433,6 +562,7 @@ class Threshold_Images(Image_Processor):
                 else:
                     image = -1*image
         return image, annotation
+
 
 class Add_Noise_To_Images(Image_Processor):
     def __init__(self, by_patient=False, variation=None):
