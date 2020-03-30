@@ -86,14 +86,18 @@ class Bring_Parotids_Together(Image_Processor):
 
 
 class Pull_Cube_sitk(Image_Processor):
-    def __init__(self, annotation_index=None, max_cubes=10, z_images=16, rows=100, cols=100):
+    def __init__(self, annotation_index=None, max_cubes=10, z_images=16, rows=100, cols=100, shuffle=True,
+                 largest=False):
         self.annotation_index = annotation_index
         self.max_cubes = max_cubes
         self.z_images, self.rows, self.cols = z_images, rows, cols
+        self.shuffle = shuffle
+        self.largest = largest
 
     def post_load_all_patient_process(self, images, annotations, patient_id=None):
         if self.annotation_index is not None:
             Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
+            Connected_Component_Filter.SetFullyConnected(True)
             stats = sitk.LabelShapeStatisticsImageFilter()
             images_shape = images.shape
             images = np.squeeze(images)
@@ -102,12 +106,19 @@ class Pull_Cube_sitk(Image_Processor):
             seed_annotations = np.squeeze(annotations[...,self.annotation_index])
             thresholded_image = sitk.GetImageFromArray(seed_annotations.astype('int'))
             connected_image = Connected_Component_Filter.Execute(thresholded_image)
+            if self.largest:
+                RelabelComponent = sitk.RelabelComponentImageFilter()
+                RelabelComponent.SortByObjectSizeOn()
+                label_image = RelabelComponent.Execute(connected_image)
+                connected_image = sitk.BinaryThreshold(sitk.Cast(label_image,sitk.sitkFloat32), lowerThreshold=0.1,
+                                                       upperThreshold=1.0)
             stats.Execute(connected_image)
             seeds = [stats.GetCentroid(l) for l in stats.GetLabels()]
             seeds = np.asarray([thresholded_image.TransformPhysicalPointToIndex(i) for i in seeds])
-            perm = np.arange(len(seeds))
-            np.random.shuffle(perm)
-            seeds = seeds[perm]
+            if self.shuffle:
+                perm = np.arange(len(seeds))
+                np.random.shuffle(perm)
+                seeds = seeds[perm]
             num_cubes = min([len(seeds),self.max_cubes])
             out_images = np.ones([num_cubes, self.z_images, self.rows, self.cols]) * np.min(images)
             out_annotations = np.zeros([num_cubes, self.z_images, self.rows, self.cols, annotations_size[-1]])
