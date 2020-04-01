@@ -878,6 +878,8 @@ class Data_Generator_Class(Sequence):
             self.patient_dict[path] = models[path].patient_dict
             self.patient_dict_indexes.update(models[path].start_stop_dict)
             self.file_list += models[path].load_file_list
+        for processor in self.image_processors:
+            processor.set_start_stop_dict(self.start_stop_dicts)
         return models
 
     def get_image_lists(self):
@@ -1102,7 +1104,8 @@ class Data_Generator_Class(Sequence):
                 for image_processor in self.image_processors:
                     images_out, annotations_out = image_processor.post_load_all_patient_process(images_out,
                                                                                                 annotations_out,
-                                                                                                patient_id=os.path.join(path_key,file_key))
+                                                                                                path_key=path_key,
+                                                                                                file_key=file_key)
             if self.by_patient_2D:
                 images_out, annotations_out = images_out[0,...], annotations_out[0,...]
         else:

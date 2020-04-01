@@ -62,7 +62,7 @@ class Image_Processor(object):
         '''
         return images, annotations
 
-    def post_load_all_patient_process(self, images, annotations, patient_id=None):
+    def post_load_all_patient_process(self, images, annotations, path_key=None, file_key=None):
         '''
         This is for image processes which go across the entire patient stack,
         :param images: [#patients, z_images, n_row, m_col, channel]
@@ -70,6 +70,16 @@ class Image_Processor(object):
         :return:
         '''
         return images, annotations
+
+    def GetSpacing(self, path_key=None, file_key=None):
+        if path_key in self.start_stop_dict:
+            if file_key in self.start_stop_dict[path_key]:
+                return self.start_stop_dict[path_key][file_key]['spacing']
+        return None
+
+    def set_start_stop_dict(self, start_stop_dict={}):
+        self.start_stop_dict = start_stop_dict
+        return None
 
 
 class Bring_Parotids_Together(Image_Processor):
@@ -86,14 +96,26 @@ class Bring_Parotids_Together(Image_Processor):
 
 
 class Pull_Cube_sitk(Image_Processor):
-    def __init__(self, annotation_index=None, max_cubes=10, z_images=16, rows=100, cols=100):
+    def __init__(self, annotation_index=None, max_cubes=10, z_images=16, rows=100, cols=100, min_volume=0, min_voxels=0):
         self.annotation_index = annotation_index
         self.max_cubes = max_cubes
         self.z_images, self.rows, self.cols = z_images, rows, cols
+        self.min_volume = min_volume * 1000
+        self.min_voxels = min_voxels
+        if min_volume != 0 and min_voxels != 0:
+            raise AssertionError('Cannot have both min_volume and min_voxels specified')
 
-    def post_load_all_patient_process(self, images, annotations, patient_id=None):
+    def post_load_all_patient_process(self, images, annotations, path_key=None, file_key=None):
         if self.annotation_index is not None:
+            spacing = self.GetSpacing(path_key=path_key,file_key=file_key)
             Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
+            RelabelComponentFilter = None
+            if self.min_volume > 0 and spacing is not None:
+                RelabelComponentFilter = sitk.RelabelComponentImageFilter()
+                RelabelComponentFilter.SetMinimumObjectSize(int(self.min_volume/np.prod(spacing)))
+            elif self.min_voxels > 0:
+                RelabelComponentFilter = sitk.RelabelComponentImageFilter()
+                RelabelComponentFilter.SetMinimumObjectSize(self.min_voxels)
             stats = sitk.LabelShapeStatisticsImageFilter()
             images_shape = images.shape
             images = np.squeeze(images)
@@ -102,6 +124,8 @@ class Pull_Cube_sitk(Image_Processor):
             seed_annotations = np.squeeze(annotations[...,self.annotation_index])
             thresholded_image = sitk.GetImageFromArray(seed_annotations.astype('int'))
             connected_image = Connected_Component_Filter.Execute(thresholded_image)
+            if RelabelComponentFilter is not None:
+                connected_image = RelabelComponentFilter.Execute(connected_image)
             stats.Execute(connected_image)
             seeds = [stats.GetCentroid(l) for l in stats.GetLabels()]
             seeds = np.asarray([thresholded_image.TransformPhysicalPointToIndex(i) for i in seeds])
@@ -140,7 +164,7 @@ class Mask_Pred_Within_Annotation(Image_Processor):
         self.remove_liver_layer_indexes = remove_liver_layer_indexes
         self.threshold_value = threshold_value
 
-    def post_load_all_patient_process(self, images, annotations, patient_id=None):
+    def post_load_all_patient_process(self, images, annotations, path_key=None, file_key=None):
         if self.mask_image:
             images[annotations[...,0] == 1] = self.threshold_value
         if self.return_mask:
@@ -300,7 +324,7 @@ class Fuzzy_Segment_Liver_Lobes(Image_Processor):
         distance_map /= total[..., None]
         return np.reshape(distance_map, out_shape)
 
-    def post_load_all_patient_process(self, images, annotations, patient_id=None):
+    def post_load_all_patient_process(self, images, annotations, path_key=None, file_key=None):
         '''
         :param images: Images set to values of 0 to max - min. This is done
         :param annotations:
@@ -308,6 +332,7 @@ class Fuzzy_Segment_Liver_Lobes(Image_Processor):
         '''
         if self.variation is not None and not self.run_as_preload:
             variation = self.variation[np.random.randint(len(self.variation))]
+            patient_id = os.path.join(path_key,file_key)
             annotations = self.make_fuzzy_label(annotations, variation, patient_id)
         return images, annotations
 
