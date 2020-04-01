@@ -96,14 +96,18 @@ class Bring_Parotids_Together(Image_Processor):
 
 
 class Pull_Cube_sitk(Image_Processor):
-    def __init__(self, annotation_index=None, max_cubes=10, z_images=16, rows=100, cols=100, min_volume=0, min_voxels=0):
+    def __init__(self, annotation_index=None, max_cubes=10, z_images=16, rows=100, cols=100, min_volume=0, min_voxels=0,
+                 max_volume=np.inf, max_voxels=np.inf):
         self.annotation_index = annotation_index
         self.max_cubes = max_cubes
         self.z_images, self.rows, self.cols = z_images, rows, cols
         self.min_volume = min_volume * 1000
         self.min_voxels = min_voxels
+        self.max_volume, self.max_voxels = max_volume * 1000, max_voxels
         if min_volume != 0 and min_voxels != 0:
             raise AssertionError('Cannot have both min_volume and min_voxels specified')
+        if max_volume != np.inf and min_voxels != np.inf:
+            raise AssertionError('Cannot have both max_volume and max_voxels specified')
 
     def post_load_all_patient_process(self, images, annotations, path_key=None, file_key=None):
         if self.annotation_index is not None:
@@ -117,16 +121,21 @@ class Pull_Cube_sitk(Image_Processor):
             seed_annotations = np.squeeze(annotations[...,self.annotation_index])
             thresholded_image = sitk.GetImageFromArray(seed_annotations.astype('int'))
             connected_image = Connected_Component_Filter.Execute(thresholded_image)
+            RelabelComponentFilter = sitk.RelabelComponentImageFilter()
             if self.min_volume > 0 and spacing is not None:
-                RelabelComponentFilter = sitk.RelabelComponentImageFilter()
                 RelabelComponentFilter.SetMinimumObjectSize(int(self.min_volume/np.prod(spacing)))
                 connected_image = RelabelComponentFilter.Execute(connected_image)
             elif self.min_voxels > 0:
-                RelabelComponentFilter = sitk.RelabelComponentImageFilter()
                 RelabelComponentFilter.SetMinimumObjectSize(self.min_voxels)
                 connected_image = RelabelComponentFilter.Execute(connected_image)
             stats.Execute(connected_image)
-            seeds = [stats.GetCentroid(l) for l in stats.GetLabels()]
+            seeds = np.asarray([stats.GetCentroid(l) for l in stats.GetLabels()])
+            if self.max_volume != np.inf and spacing is not None:
+                volumes = np.asarray([stats.GetNumberOfPixels(l)*np.prod(spacing) for l in stats.GetLabels()])
+                seeds = seeds[volumes<self.max_volume]
+            elif self.max_voxels != np.inf:
+                volumes = np.asarray([stats.GetNumberOfPixels(l) for l in stats.GetLabels()])
+                seeds = seeds[volumes<self.max_voxels]
             seeds = np.asarray([thresholded_image.TransformPhysicalPointToIndex(i) for i in seeds])
             perm = np.arange(len(seeds))
             np.random.shuffle(perm)
