@@ -109,13 +109,6 @@ class Pull_Cube_sitk(Image_Processor):
         if self.annotation_index is not None:
             spacing = self.GetSpacing(path_key=path_key,file_key=file_key)
             Connected_Component_Filter = sitk.ConnectedComponentImageFilter()
-            RelabelComponentFilter = None
-            if self.min_volume > 0 and spacing is not None:
-                RelabelComponentFilter = sitk.RelabelComponentImageFilter()
-                RelabelComponentFilter.SetMinimumObjectSize(int(self.min_volume/np.prod(spacing)))
-            elif self.min_voxels > 0:
-                RelabelComponentFilter = sitk.RelabelComponentImageFilter()
-                RelabelComponentFilter.SetMinimumObjectSize(self.min_voxels)
             stats = sitk.LabelShapeStatisticsImageFilter()
             images_shape = images.shape
             images = np.squeeze(images)
@@ -124,7 +117,13 @@ class Pull_Cube_sitk(Image_Processor):
             seed_annotations = np.squeeze(annotations[...,self.annotation_index])
             thresholded_image = sitk.GetImageFromArray(seed_annotations.astype('int'))
             connected_image = Connected_Component_Filter.Execute(thresholded_image)
-            if RelabelComponentFilter is not None:
+            if self.min_volume > 0 and spacing is not None:
+                RelabelComponentFilter = sitk.RelabelComponentImageFilter()
+                RelabelComponentFilter.SetMinimumObjectSize(int(self.min_volume/np.prod(spacing)))
+                connected_image = RelabelComponentFilter.Execute(connected_image)
+            elif self.min_voxels > 0:
+                RelabelComponentFilter = sitk.RelabelComponentImageFilter()
+                RelabelComponentFilter.SetMinimumObjectSize(self.min_voxels)
                 connected_image = RelabelComponentFilter.Execute(connected_image)
             stats.Execute(connected_image)
             seeds = [stats.GetCentroid(l) for l in stats.GetLabels()]
