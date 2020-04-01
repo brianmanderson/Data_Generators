@@ -4,15 +4,19 @@
 
 A collection of the data generators which I created
 
-To get 3D images use
+To get 3D images that pull all images from the patient about the mask [1] with 0 expansion
 
-    from Generators import Train_Data_Generator2D
-
+    from Base_Deeplearning_Code.Data_Generators.Generators import Data_Generator_Class
+    from Base_Deeplearning_Code.Data_Generators.Image_Processors import *
     paths = [os.path.join(base_path, 'Train', 'Contrast', 'Single_Images3D')]
-
-    test_generator = Train_Data_Generator2D(batch_size=5, num_of_classes=2,
-                                      data_paths=paths_test_generator,normalize_to_value=1,expansion=10,
-                                      is_CT=is_CT, mean_val=mean_val, std_val=std_val)
-    Batch_size determines how many images are thrown in a batch together, z_images determines how many images are printed out
-    if z_images > batch_size for 2D purposes, you will get blacked out images
-    expansion asks how many images to include above and below segmented images
+    
+    # Load up any processors
+    mean_val, std_val = 67, 36
+    image_processors_train = [
+                              Normalize_Images(mean_val=mean_val,std_val=std_val), 
+                              normalize,Ensure_Image_Proportions(512, 512),
+                              Annotations_To_Categorical(num_of_classes=2)
+                              ]
+    train_generator = Data_Generator_Class(by_patient=True,num_patients=1, whole_patient=True, shuffle=False,
+                                           data_paths=paths, expansion=0, wanted_indexes=[1],
+                                           image_processors=image_processors_train)
