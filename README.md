@@ -14,7 +14,7 @@ To get 3D images that pull all images from the patient about the mask [1] with 0
     mean_val, std_val = 67, 36
     image_processors_train = [
                               Normalize_Images(mean_val=mean_val,std_val=std_val), 
-                              normalize,Ensure_Image_Proportions(512, 512),
+                              Ensure_Image_Proportions(512, 512),
                               Annotations_To_Categorical(num_of_classes=2)
                               ]
     train_generator = Data_Generator_Class(by_patient=True,num_patients=1, whole_patient=True, shuffle=False,
