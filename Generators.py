@@ -375,7 +375,7 @@ class Data_Set_Reader(object):
 
 class Data_Generator_Class(Sequence):
     def __init__(self, by_patient=False, whole_patient=False, wanted_indexes=None,data_paths=None, num_patients=1,
-                 expansion=np.inf,shuffle=False, batch_size=1, save_and_reload=True, max_batch_size=np.inf,
+                 expansion=np.inf,shuffle=False, batch_size=1, max_batch_size=np.inf,
                  image_processors=None, split_data_evenly_from_paths=False, random_start=True, by_patient_2D=False,
                  random_wiggle_3D=0):
         '''
@@ -408,7 +408,6 @@ class Data_Generator_Class(Sequence):
         self.image_dictionary = {}
         self.preload_patient_dict = {}
         self.image_processors = image_processors
-        self.save_and_reload = save_and_reload
         self.max_patients = np.inf
         self.shuffle = shuffle
         self.batch_size = batch_size
@@ -495,7 +494,7 @@ class Data_Generator_Class(Sequence):
                 temp_batch = []
         self.file_batches = file_batches
 
-    def load_image(self, batch_size=0, image_names=None):
+    def load_images_process(self, image_names, batch_size=0):
         add = 0
         start = 0
         finish = len(image_names)
@@ -558,7 +557,7 @@ class Data_Generator_Class(Sequence):
         for index, i in enumerate(range(start,finish)):
             if i < 0 or i > len(image_names):
                 print('start:' + str(start) + 'total images: ' + str(len(image_names)) + '_i:' + str(i))
-            if image_names[i] not in self.image_dictionary or not self.save_and_reload:
+            if image_names[i] not in self.image_dictionary:
                 image_name = image_names[i]
                 if image_name.find('_image' + ext) == -1:
                     if ext == '.npy':
@@ -582,52 +581,28 @@ class Data_Generator_Class(Sequence):
                 for image_processors in self.image_processors:
                     images_temp, annotations_temp = image_processors.preload_single_image_process(images_temp, annotations_temp)
                 images_temp = images_temp[...,None]
-                self.image_dictionary[image_names[i]] = [images_temp.astype('float32'), annotations_temp]
+                self.image_dictionary[image_names[i]] = [images_temp, annotations_temp]
             wanted_names.append(image_names[i])
         images_temp, annotations_temp = self.image_dictionary[wanted_names[0]]
-        images, annotations = np.ones((batch_size,) + images_temp.shape[1:],dtype='float32')*-1000, \
-                              np.zeros((batch_size,) + annotations_temp.shape[1:],dtype='int8')
+        images, annotations = np.ones((len(wanted_names),) + images_temp.shape[1:],dtype=images_temp.dtype)*-1000, \
+                              np.zeros((len(wanted_names),) + annotations_temp.shape[1:],dtype=annotations_temp.dtype)
         for i, key in enumerate(wanted_names):
             images[i],annotations[i] = self.image_dictionary[key]
-        for image_processors in self.image_processors:
-            images, annotations = image_processors.post_load_process(images, annotations)
-        return images, annotations
+        return wanted_names, images, annotations
 
     def patient_preload_process(self, image_names):
-        start = 0
-        finish = len(image_names)
-        ext = '.nii.gz'
-        wanted_names = []
-        for index, i in enumerate(range(start,finish)):
-            if i < 0 or i > len(image_names):
-                print('start:' + str(start) + 'total images: ' + str(len(image_names)) + '_i:' + str(i))
-            if image_names[i] not in self.image_dictionary or not self.save_and_reload:
-                image_name = image_names[i]
-                if image_name.find('_image' + ext) == -1:
-                    data_handle = sitk.ReadImage(image_name)
-                    data = sitk.ReadImage(data_handle)
-                    images_temp = data[0, :, :][None,...]
-                    annotations_temp = data[1, :, :][None,...]
-                else:
-                    images_temp_handle = sitk.ReadImage(image_name)
-                    images_temp = sitk.GetArrayFromImage(images_temp_handle)[None,...]
-                    annotations_temp_handle = sitk.ReadImage(image_name.replace('_image.nii.gz','_annotation.nii.gz'))
-                    annotations_temp = sitk.GetArrayFromImage(annotations_temp_handle)[None,...]
-                for image_processors in self.image_processors:
-                    images_temp, annotations_temp = image_processors.preload_single_image_process(images_temp, annotations_temp)
-                images_temp = images_temp[...,None]
-                self.image_dictionary[image_names[i]] = [images_temp.astype('float32'), annotations_temp]
-            wanted_names.append(image_names[i])
-        images_temp, annotations_temp = self.image_dictionary[wanted_names[0]]
-        images, annotations = np.ones((finish,) + images_temp.shape[1:],dtype='float32')*-1000, \
-                              np.zeros((finish,) + annotations_temp.shape[1:],dtype='int8')
-        for i, key in enumerate(wanted_names):
-            images[i],annotations[i] = self.image_dictionary[key]
+        wanted_names, images, annotations = self.load_images_process(image_names, batch_size=len(image_names))
         for image_processors in self.image_processors:
             images, annotations = image_processors.pre_load_whole_image_process(images, annotations)
         for i, key in enumerate(wanted_names):
             self.image_dictionary[key] = copy.deepcopy([images[i][None,...], annotations[i][None,...]])
         return None
+
+    def load_image(self, batch_size=0, image_names=None):
+        wanted_names, images, annotations = self.load_images_process(image_names, batch_size=batch_size)
+        for image_processors in self.image_processors:
+            images, annotations = image_processors.post_load_process(images, annotations)
+        return images, annotations
 
     def get_patient_name(self, image_names):
         file = image_names[0]
@@ -636,8 +611,8 @@ class Data_Generator_Class(Sequence):
             broken_up = file.split('/')
             broken_up[1] = '/' + broken_up[1]
             broken_up = broken_up[1:]
-        path_key = os.path.normpath(os.path.join(*broken_up[:-1]))
         file_key = ''.join(['{}_'.format(i) for i in broken_up[-1].split('_')[:-2]])[:-1]
+        path_key = os.path.normpath(file.split(file_key)[0])
         return path_key, file_key
 
     def load_images(self,index):

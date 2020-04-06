@@ -129,27 +129,30 @@ class Pull_Cube_sitk(Image_Processor):
                 RelabelComponentFilter.SetMinimumObjectSize(self.min_voxels)
                 connected_image = RelabelComponentFilter.Execute(connected_image)
             stats.Execute(connected_image)
-            seeds = np.asarray([stats.GetCentroid(l) for l in stats.GetLabels()])
+            bounding_boxes = np.asarray([stats.GetBoundingBox(l) for l in stats.GetLabels()])
             if self.max_volume != np.inf and spacing is not None:
                 volumes = np.asarray([stats.GetNumberOfPixels(l)*np.prod(spacing) for l in stats.GetLabels()])
-                seeds = seeds[volumes<self.max_volume]
+                bounding_boxes = bounding_boxes[volumes<self.max_volume]
             elif self.max_voxels != np.inf:
                 volumes = np.asarray([stats.GetNumberOfPixels(l) for l in stats.GetLabels()])
-                seeds = seeds[volumes<self.max_voxels]
-            seeds = np.asarray([thresholded_image.TransformPhysicalPointToIndex(i) for i in seeds])
-            perm = np.arange(len(seeds))
+                bounding_boxes = bounding_boxes[volumes<self.max_voxels]
+            perm = np.arange(len(bounding_boxes))
             np.random.shuffle(perm)
-            seeds = seeds[perm]
-            num_cubes = min([len(seeds),self.max_cubes])
+            bounding_boxes = bounding_boxes[perm]
+            num_cubes = min([len(bounding_boxes),self.max_cubes])
             out_images = np.ones([num_cubes, self.z_images, self.rows, self.cols]) * np.min(images)
             out_annotations = np.zeros([num_cubes, self.z_images, self.rows, self.cols, annotations_size[-1]])
+            max_bounds = seed_annotations.shape
             for index in range(num_cubes):
-                seed = seeds[index]
-                z_start, z_stop = max([0,seed[2]-self.z_images//2]), min([images_size[0],seed[2]+self.z_images//2])
-                r_start, r_stop = max([0, seed[1] - self.rows // 2]), min(
-                    [images_size[1], seed[1] + self.rows // 2])
-                c_start, c_stop = max([0, seed[0] - self.cols // 2]), min(
-                    [images_size[2], seed[0] + self.cols // 2])
+                bounding_box = bounding_boxes[index]
+                c_start, r_start, z_start, _, _, _ = bounding_box
+                c_stop, r_stop, z_stop = c_start + bounding_box[3], r_start + bounding_box[4], z_start + bounding_box[5]
+                z_start -= (self.z_images // 2 - np.random.randint((z_stop-z_start)))
+                c_start -= (self.cols // 2 - np.random.randint((c_stop - c_start)))
+                r_start -= (self.rows // 2 - np.random.randint((r_stop - r_start)))
+                z_start, r_start, c_start = [max([0,i]) for i in [z_start, r_start, c_start]]
+                z_stop, r_stop, c_stop = z_start + self.z_images, r_start + self.rows, c_start + self.cols
+                z_stop, r_stop, c_stop = [min([max_bounds[index], i]) for index, i in enumerate([z_stop, r_stop, c_stop])]
                 image_cube = images[z_start:z_stop, r_start:r_stop, c_start:c_stop]
                 annotation_cube = annotations[z_start:z_stop, r_start:r_stop, c_start:c_stop, ...]
                 img_shape = image_cube.shape
@@ -419,7 +422,11 @@ class Annotations_To_Categorical(Image_Processor):
         :param annotations:
         :return:
         '''
-        annotations = to_categorical(annotations, self.num_of_classes)
+        annotations = to_categorical(annotations, self.num_of_classes).astype(annotations.dtype) # Sets it to float32, which can take up alot of memory, adding on post-load process
+        return images, annotations
+
+    def post_load_process(self, images, annotations):
+        annotations = annotations.astype('float32')
         return images, annotations
 
 
@@ -461,6 +468,7 @@ class Ensure_Image_Proportions(Image_Processor):
             image = image[None, ...]
             annotation = annotation[None, ...]
         if image.shape[1] != self.image_size_row or image.shape[2] != self.image_size_col:
+            image_dtype, annotation_dtype = image.dtype, annotation.dtype
             block = (image.shape[1]//self.image_size_row,image.shape[2]//self.image_size_col)
             block = np.max([block,(1,1)],axis=0)
             if np.max(block) > 1:
@@ -468,6 +476,7 @@ class Ensure_Image_Proportions(Image_Processor):
                 image = block_reduce(image[0, ...], block, np.average).astype('float32')[None, ...]
                 annotation = block_reduce(annotation[0, ...].astype('int'), block, np.max).astype('int')[None, ...]
             image, annotation = self.convert_image_size(image, annotation)
+            image, annotation = image.astype(image_dtype), annotation.astype(annotation_dtype)
         return image, annotation
 
 
