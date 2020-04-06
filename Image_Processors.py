@@ -415,6 +415,8 @@ class Annotations_To_Categorical(Image_Processor):
         :param num_of_classes: number of classes
         '''
         self.num_of_classes = num_of_classes
+        if self.num_of_classes > 5:
+            print('Warning, to_categorical drastically increases annotation size, can result in large RAM usage')
 
     def preload_single_image_process(self, images, annotations):
         '''
