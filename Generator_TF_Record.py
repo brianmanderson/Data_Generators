@@ -43,12 +43,7 @@ class Data_Generator_Class(object):
         if image_processors is not None:
             for image_processor in image_processors:
                 data_set = data_set.map(image_processor.parsing_function)
-        data = next(iter(data_set))
-        xxx = 1
-
-    def __on_epoch_end__(self):
-        if self.shuffle:
-            self.data_set.shuffle()
+        self.data_set = data_set
 
 
 if __name__ == '__main__':
