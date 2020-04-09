@@ -6,27 +6,30 @@ from .Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
 
 
 class Image_Processor(object):
-    def parsing_function(self, image_features):
-        '''
-        Giving in a dictionary of values
-        '''
-        return image_features
+    def parse(self, *args):
+        return args
 
 
 class Decode_Images_Annotations(Image_Processor):
-    def parsing_function(self, image_features):
-        tensor_image = tf.reshape(tf.io.decode_raw(image_features['image'], out_type='float'),
-                                  (image_features['z_images'], image_features['rows'],
-                                   image_features['cols']))
-        annotation_image = tf.reshape(tf.io.decode_raw(image_features['annotation'], out_type='int8'),
+    def pre_cache_processes(self, image_features):
+        if 'z_images' in image_features:
+            tensor_image = tf.reshape(tf.io.decode_raw(image_features['image'], out_type='float'),
                                       (image_features['z_images'], image_features['rows'],
                                        image_features['cols']))
+            annotation_image = tf.reshape(tf.io.decode_raw(image_features['annotation'], out_type='int8'),
+                                          (image_features['z_images'], image_features['rows'],
+                                           image_features['cols']))
+        else:
+            tensor_image = tf.reshape(tf.io.decode_raw(image_features['image'], out_type='float'),
+                                      (image_features['rows'], image_features['cols']))
+            annotation_image = tf.reshape(tf.io.decode_raw(image_features['annotation'], out_type='int8'),
+                                          (image_features['rows'], image_features['cols']))
         image_features['image'] = tensor_image
         image_features['annotation'] = annotation_image
         return image_features
 
 
-class Decode_Bounding_Boxes_and_Volumes(Image_Processor):
+class Decode_Bounding_Boxes_Volumes_Spacing(Image_Processor):
     def __init__(self, annotation_indexes=None):
         '''
         annotation_indexes: list of indexes [1,2,3...]
@@ -38,7 +41,10 @@ class Decode_Bounding_Boxes_and_Volumes(Image_Processor):
                 self.volume_names.append('volumes_{}'.format(index))
                 self.bbox_names.append('bounding_boxes_{}'.format(index))
 
-    def parsing_function(self, image_features):
+    def parse(self, image_features):
+        if 'spacing' in image_features:
+            spacing = tf.io.decode_raw(image_features['spacing'], out_type='float')
+            image_features['spacing'] = spacing
         for name in self.bbox_names:
             if name in image_features:
                 bboxes = tf.io.decode_raw(image_features[name], out_type='int32')
@@ -53,7 +59,7 @@ class Decode_Bounding_Boxes_and_Volumes(Image_Processor):
 
 
 class Return_Images_Annotations(Image_Processor):
-    def parsing_function(self, image_features):
+    def parse(self, image_features):
         return image_features['image'], image_features['annotation']
 
 
@@ -63,7 +69,7 @@ class Expand_Dimensions(Image_Processor):
         self.on_images = on_images
         self.on_annotations = on_annotations
 
-    def parsing_function(self, image_features):
+    def parse(self, image_features):
         if self.on_images:
             image = image_features['image']
             image = tf.expand_dims(image, axis=self.axis)
@@ -88,7 +94,7 @@ class Repeat_Channel(Image_Processor):
         self.on_images = on_images
         self.on_annotations = on_annotations
 
-    def parsing_function(self, image_features):
+    def parse(self, image_features):
         if self.on_images:
             image = image_features['image']
             image = tf.repeat(image, axis=self.axis, repeats=self.repeats)
@@ -108,7 +114,7 @@ class Normalize_Images(Image_Processor):
         '''
         self.mean_val, self.std_val = tf.constant(mean_val, dtype='float32'), tf.constant(std_val, dtype='float32')
 
-    def parsing_function(self, image_features):
+    def parse(self, image_features):
         image = image_features['image']
         image = (image - self.mean_val)/self.std_val
         image_features['image'] = image
@@ -127,7 +133,7 @@ class Threshold_Images(Image_Processor):
         self.lower = tf.constant(lower_bound, dtype='float32')
         self.upper = tf.constant(upper_bound, dtype='float32')
 
-    def parsing_function(self, image_features):
+    def parse(self, image_features):
         image = image_features['image']
         image = tf.where(image > self.upper, self.upper, image)
         image = tf.where(image < self.lower, self.lower, image)
@@ -143,7 +149,7 @@ class Clip_Images(Image_Processor):
         self.power_val_z, self.power_val_r, self.power_val_c = tf.constant(power_val_z), tf.constant(power_val_r), tf.constant(power_val_c)
         self.min_images, self.min_rows, self.min_cols = tf.constant(min_images), tf.constant(min_rows), tf.constant(min_cols)
 
-    def parsing_function(self, image_features):
+    def parse(self, image_features):
         zero = tf.constant(0)
         image = image_features['image']
         annotation = image_features['annotation']
@@ -171,7 +177,6 @@ class Clip_Images(Image_Processor):
                                                                                                          self.power_val_c) != zero else zero
         min_images, min_rows, min_cols = z_total + remainder_z, r_total + remainder_r, c_total + remainder_c
         min_images = tf.maximum(self.min_images,min_images)
-
         min_rows = tf.maximum(self.min_rows, min_rows)
         min_cols = tf.maximum(self.min_cols, min_cols)
         output_dims = tf.convert_to_tensor([min_images, min_rows, min_cols])
@@ -205,7 +210,7 @@ class Pull_Cube(Image_Processor):
         self.min_voxels = tf.constant(min_voxels, dtype='float')
         self.max_volume, self.max_voxels = tf.constant(max_volume * 1000, dtype='float'), tf.constant(max_voxels, dtype='float')
 
-    def parsing_function(self, image_features):
+    def parse(self, image_features):
         if self.annotation_index is not None:
             bounding_boxes = image_features['bounding_boxes_{}'.format(self.annotation_index)]
             volumes = image_features['volumes_{}'.format(self.annotation_index)]
