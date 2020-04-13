@@ -6,12 +6,12 @@ from .Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
 
 
 class Image_Processor(object):
-    def parse(self, *args):
+    def parse(self, **args):
         return args
 
 
 class Decode_Images_Annotations(Image_Processor):
-    def pre_cache_processes(self, image_features):
+    def parse(self, image_features):
         if 'z_images' in image_features:
             tensor_image = tf.reshape(tf.io.decode_raw(image_features['image'], out_type='float'),
                                       (image_features['z_images'], image_features['rows'],
@@ -69,16 +69,12 @@ class Expand_Dimensions(Image_Processor):
         self.on_images = on_images
         self.on_annotations = on_annotations
 
-    def parse(self, image_features):
+    def parse(self, image, annotation):
         if self.on_images:
-            image = image_features['image']
             image = tf.expand_dims(image, axis=self.axis)
-            image_features['image'] = image
         if self.on_annotations:
-            annotation = image_features['annotation']
             annotation = tf.expand_dims(annotation, axis=self.axis)
-            image_features['annotation'] = annotation
-        return image_features
+        return image, annotation
 
 
 class Repeat_Channel(Image_Processor):
@@ -94,16 +90,12 @@ class Repeat_Channel(Image_Processor):
         self.on_images = on_images
         self.on_annotations = on_annotations
 
-    def parse(self, image_features):
+    def parse(self, image, annotation):
         if self.on_images:
-            image = image_features['image']
             image = tf.repeat(image, axis=self.axis, repeats=self.repeats)
-            image_features['image'] = image
         if self.on_annotations:
-            annotation = image_features['annotation']
             annotation = tf.repeat(annotation, axis=self.axis, repeats=self.repeats)
-            image_features['annotation'] = annotation
-        return image_features
+        return image, annotation
 
 
 class Normalize_Images(Image_Processor):
@@ -114,11 +106,22 @@ class Normalize_Images(Image_Processor):
         '''
         self.mean_val, self.std_val = tf.constant(mean_val, dtype='float32'), tf.constant(std_val, dtype='float32')
 
-    def parse(self, image_features):
-        image = image_features['image']
+    def parse(self, image, annotation):
         image = (image - self.mean_val)/self.std_val
-        image_features['image'] = image
-        return image_features
+        return image, annotation
+
+
+class Cast_Data(Image_Processor):
+    def __init__(self, image_dtype=None, annotation_dtype=None):
+        self.image_dtype = image_dtype
+        self.annotation_dtype = annotation_dtype
+
+    def parse(self, images, annotations):
+        if self.image_dtype is not None:
+            images = tf.dtypes.cast(images, self.image_dtype)
+        if self.annotation_dtype is not None:
+            annotations = tf.dtypes.cast(annotations, self.annotation_dtype)
+        return images, annotations
 
 
 class Threshold_Images(Image_Processor):
@@ -133,12 +136,10 @@ class Threshold_Images(Image_Processor):
         self.lower = tf.constant(lower_bound, dtype='float32')
         self.upper = tf.constant(upper_bound, dtype='float32')
 
-    def parse(self, image_features):
-        image = image_features['image']
+    def parse(self, image, annotation):
         image = tf.where(image > self.upper, self.upper, image)
         image = tf.where(image < self.lower, self.lower, image)
-        image_features['image'] = image
-        return image_features
+        return image, annotation
 
 
 class Clip_Images(Image_Processor):

@@ -23,17 +23,9 @@ def return_parse_function(image_feature_description):
         return tf.io.parse_single_example(example_proto, image_feature_description)
     return _parse_image_function
 
-    image_processors = {'pre_cache_map':[Decode_Images_Annotations(), Decode_Bounding_Boxes_Volumes_Spacing(),
-                                         Return_Images_Annotations()],
-                        'pre_cache_batch':[Expand_Dimensions(axis=-1, on_images=True, on_annotations=True),
-                                           Repeat_Channel(axis=-1, repeats=3, on_images=True),
-                                           Normalize_Images(mean_val=80, std_val=42),
-                                           Threshold_Images(lower_bound=-5, upper_bound=5)],
-                        'post_cache_map':[],
-                        'post_cache_batch':[]}
+
 class Data_Generator_Class(object):
-    def __init__(self, record_names=None, shuffle=False, batch_size=1, is_2D_whole_patient=False, debug=False,
-                 image_processors=None):
+    def __init__(self, record_names=None, shuffle=False, batch_size=1,debug=False, image_processors=None):
         self.shuffle = shuffle
         assert record_names is not None, print('Need to pass a list of record names!')
         data_sets = []
@@ -55,15 +47,18 @@ class Data_Generator_Class(object):
             for image_processor in image_processors:
                 if image_processor == 'batch':
                     data_set = data_set.batch(batch_size, drop_remainder=False)
+                    if debug:
+                        data = next(iter(data_set))
                 elif image_processor == 'cache':
                     data_set = data_set.cache()
                 elif image_processor == 'unbatch':
                     data_set = data_set.unbatch()
+                    if debug:
+                        data = next(iter(data_set))
                 else:
-                    data_set = data_set.map(image_processor.parse,
-                                            num_parallel_calls=tf.data.experimental.AUTOTUNE)
                     if debug:
                         data = image_processor.parse(data)
+                    data_set = data_set.map(image_processor.parse, num_parallel_calls=tf.data.experimental.AUTOTUNE)
         self.data_set = data_set
 
 

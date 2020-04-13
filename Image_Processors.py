@@ -546,19 +546,10 @@ class Normalize_MR(Image_Processor):
         counts, bins = np.histogram(data, bins=100)
         count_index = 0
         count_value = 0
-        while count_value/np.sum(counts) < .3:
+        while count_value/np.sum(counts) < .3: # Throw out the bottom 30 percent of data, as that is usually just 0s
             count_value += counts[count_index]
             count_index += 1
         min_bin = bins[count_index]
-        # bins = bins[:-1]
-        # count_index = np.where(counts == np.max(counts))[0][-1]
-        # half_counts = counts - np.max(counts) // 2
-        # half_upper = np.abs(half_counts[count_index:])
-        # max_50 = np.where(half_upper == np.min(half_upper))[0][0]
-        #
-        # max_values = bins[count_index + max_50]
-        # min_values = bins[count_index] - (bins[count_index + max_50] - bins[count_index + max_50])
-        # data = data[np.where((data >= min_values) & (data <= max_values))]
         data = data[data>min_bin]
         mean_val, std_val = np.mean(data), np.std(data)
         images = (images - mean_val)/std_val
