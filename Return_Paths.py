@@ -58,6 +58,15 @@ def find_base_dir():
             base_path = os.path.join(base_path,'..')
     return base_path
 
+def find_raid_dir():
+    base_path = os.path.join('.')
+    for _ in range(20):
+        if 'raid' in os.listdir(base_path):
+            break
+        else:
+            base_path = os.path.join(base_path,'..')
+    return base_path
+
 
 if __name__ == '__main__':
     pass
