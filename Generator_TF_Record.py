@@ -25,7 +25,7 @@ def return_parse_function(image_feature_description):
 
 
 class Data_Generator_Class(object):
-    def __init__(self, record_names=None, shuffle=False, batch_size=1,debug=False, image_processors=None):
+    def __init__(self, record_names=None, shuffle=False, debug=False, image_processors=None):
         self.shuffle = shuffle
         assert record_names is not None, print('Need to pass a list of record names!')
         data_sets = []
@@ -41,24 +41,36 @@ class Data_Generator_Class(object):
             data_set = data_sets[0]
         self.data_set = data_set
         data = None
-        if debug:
-            data = next(iter(data_set))
         if image_processors is not None:
             for image_processor in image_processors:
-                if image_processor == 'batch':
-                    data_set = data_set.batch(batch_size, drop_remainder=False)
-                    if debug:
-                        data = next(iter(data_set))
-                elif image_processor == 'cache':
-                    data_set = data_set.cache()
-                elif image_processor == 'unbatch':
-                    data_set = data_set.unbatch()
-                    if debug:
-                        data = next(iter(data_set))
-                else:
+                if type(image_processor) not in [dict, set]:
                     if debug:
                         data = image_processor.parse(data)
                     data_set = data_set.map(image_processor.parse, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+                elif type(image_processor) in [dict, set]:
+                    value = None
+                    if type(image_processor) is dict:
+                        value = [image_processor[i] for i in image_processor][0]
+                    if 'batch' in image_processor:
+                        assert value is not None, print("You need to provide a batch size with {'batch':batch_size}")
+                        data_set = data_set.batch(value, drop_remainder=False)
+                    elif 'shuffle' in image_processor:
+                        assert value is not None, print("You need to provide a shuffle_buffer with {'shuffle':buffer}")
+                        data_set = data_set.shuffle(value, reshuffle_each_iteration=True)
+                    elif 'cache' in image_processor:
+                        if value is not None:
+                            if os.path.exists(value):
+                                os.remove(value)
+                            data_set = data_set.cache(value)
+                        else:
+                            data_set.cache()
+                    elif 'unbatch' in image_processor:
+                        data_set = data_set.unbatch()
+                    if debug:
+                        data = next(iter(data_set))
+                else:
+                    raise ModuleNotFoundError('Need to provide either a image processor, dict, or set!')
+
         self.data_set = data_set
 
 
