@@ -3,7 +3,7 @@ __author__ = 'Brian M Anderson'
 
 from .Image_Processors_TF import *
 from .Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
-import pickle, os
+import pickle, os, glob
 
 
 def load_obj(path):
@@ -58,20 +58,27 @@ class Data_Generator_Class(object):
                         assert value is not None, print("You need to provide a shuffle_buffer with {'shuffle':buffer}")
                         data_set = data_set.shuffle(value, reshuffle_each_iteration=True)
                     elif 'cache' in image_processor:
-                        if value is not None:
-                            if os.path.exists(value):
-                                os.remove(value)
-                            data_set = data_set.cache(value)
+                        if value is None:
+                            data_set = data_set.cache()
                         else:
-                            data_set.cache()
+                            assert os.path.isdir(value), print('Pass a path to {cache:path}, not a file!')
+                            existing_files = glob.glob(os.path.join(value,'*cache.tfrecord*')) # Delete previous ones
+                            for file in existing_files:
+                                os.remove(file)
+                            path = os.path.join(value,'cache.tfrecord')
+                            data_set = data_set.cache(path)
+                    elif 'repeat' in image_processor:
+                        if value is not None:
+                            data_set = data_set.repeat(value)
+                        else:
+                            data_set = data_set.repeat()
                     elif 'unbatch' in image_processor:
                         data_set = data_set.unbatch()
                     if debug:
                         data = next(iter(data_set))
                 else:
                     raise ModuleNotFoundError('Need to provide either a image processor, dict, or set!')
-
-        self.data_set = data_set
+        self.data_set = data_set.prefetch(tf.data.experimental.AUTOTUNE)
 
 
 if __name__ == '__main__':
