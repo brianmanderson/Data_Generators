@@ -689,13 +689,22 @@ class Random_Scale_Processor(Image_Processor):
 
     def scale_image(self, im, variation=0, interpolator='linear'):
         if interpolator is 'linear':
-            temp_scale = cv2.resize(im, None, fx=1 + variation, fy=1 + variation,
+            temp_scale = cv2.resize(im.astype('int16'), None, fx=1 + variation, fy=1 + variation,
                                     interpolation=cv2.INTER_LINEAR)
         elif interpolator is 'nearest':
-            temp_scale = cv2.resize(im, None, fx=1 + variation, fy=1 + variation,
-                                    interpolation=cv2.INTER_NEAREST)
+            # QUICK FIX
+            # changing interpolation of mask to linear because nearest remove the last annotation
+            # due to some kind of border effect...
+            # linear should still work as we return a 0-1 output as int16
+            # temp_scale = cv2.resize(im.astype('int16'), None, fx=1 + variation, fy=1 + variation,
+            #                         interpolation=cv2.INTER_NEAREST)
+            temp_scale = cv2.resize(im.astype('int16'), None, fx=1 + variation, fy=1 + variation,
+                                    interpolation=cv2.INTER_LINEAR)
         else:
             return im
+
+        if len(temp_scale.shape) == 2:
+            temp_scale = np.expand_dims(temp_scale, axis=-1)
 
         center = (temp_scale.shape[0] // 2, temp_scale.shape[1] // 2)
         if variation > 0:
@@ -706,12 +715,12 @@ class Random_Scale_Processor(Image_Processor):
             pady = (512 - temp_scale.shape[1]) / 2
             im = np.pad(temp_scale, [
                 (math.floor(padx), math.ceil(padx)),
-                (math.floor(pady), math.ceil(pady))], mode='constant',
+                (math.floor(pady), math.ceil(pady)), (0,0)], mode='constant',
                         constant_values=np.min(temp_scale))
         return im
 
     def post_load_process(self, images, annotations):
-        if self.variation is not None:
+        if self.variation is not None or 0:
             min_val = np.min(images)
             images -= min_val
             if self.by_patient:
