@@ -236,7 +236,7 @@ class Clip_Images(Image_Processor):
             if len(self.annotations_index) > 1:
                 liver = np.sum(annotations[...,self.annotations_index],axis=-1)
             else:
-                liver = annotations[self.annotations_index]
+                liver = annotations[...,self.annotations_index]
             z_start, z_stop, r_start, r_stop, c_start, c_stop = get_bounding_box_indexes(liver)
             z_start = max([0,z_start-self.bounding_box_expansion[0]])
             z_stop = min([z_stop+self.bounding_box_expansion[0],images.shape[0]])
