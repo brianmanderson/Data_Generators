@@ -27,7 +27,7 @@ def return_parse_function(image_feature_description):
 class Data_Generator_Class(object):
     def __init__(self, record_names=None, shuffle=False, debug=False, image_processors=None):
         self.shuffle = shuffle
-        assert record_names is not None, print('Need to pass a list of record names!')
+        assert record_names is not None, 'Need to pass a list of record names!'
         data_sets = []
         for record_name in record_names:
             raw_dataset = tf.data.TFRecordDataset([record_name], num_parallel_reads=tf.data.experimental.AUTOTUNE)
@@ -52,16 +52,16 @@ class Data_Generator_Class(object):
                     if type(image_processor) is dict:
                         value = [image_processor[i] for i in image_processor][0]
                     if 'batch' in image_processor:
-                        assert value is not None, print("You need to provide a batch size with {'batch':batch_size}")
+                        assert value is not None, "You need to provide a batch size with {'batch':batch_size}"
                         data_set = data_set.batch(value, drop_remainder=False)
                     elif 'shuffle' in image_processor:
-                        assert value is not None, print("You need to provide a shuffle_buffer with {'shuffle':buffer}")
+                        assert value is not None, "You need to provide a shuffle_buffer with {'shuffle':buffer}"
                         data_set = data_set.shuffle(value, reshuffle_each_iteration=True)
                     elif 'cache' in image_processor:
                         if value is None:
                             data_set = data_set.cache()
                         else:
-                            assert os.path.isdir(value), print('Pass a path to {cache:path}, not a file!')
+                            assert os.path.isdir(value), 'Pass a path to {cache:path}, not a file!'
                             existing_files = glob.glob(os.path.join(value,'*cache.tfrecord*')) # Delete previous ones
                             for file in existing_files:
                                 os.remove(file)
