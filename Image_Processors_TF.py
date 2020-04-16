@@ -68,14 +68,8 @@ class Ensure_Image_Proportions(Image_Processor):
         self.image_size = image_size
 
     def parse(self, image, annotation, *args, **kwargs):
-        rows = tf.shape(image)[0]
-        if rows > self.image_size:
-            image = image[tf.subtract(rows,self.image_size)//2:-tf.subtract(rows,self.image_size)//2,...]
-            annotation = annotation[tf.subtract(rows,self.image_size)//2:-tf.subtract(rows,self.image_size)//2,...]
-        cols = tf.shape(image)[1]
-        if cols > self.image_size:
-            image = image[:,tf.subtract(rows,self.image_size)//2:-tf.subtract(rows,self.image_size)//2,...]
-            annotation = annotation[:,tf.subtract(rows,self.image_size)//2:-tf.subtract(rows,self.image_size)//2,...]
+        image = tf.image.resize(image, [self.image_size, self.image_size])
+        annotation = tf.image.resize(annotation, [self.image_size, self.image_size])
         return image, annotation
 
 class Expand_Dimensions(Image_Processor):
@@ -124,6 +118,17 @@ class Normalize_Images(Image_Processor):
     def parse(self, image, annotation, *args, **kwargs):
         image = (image - self.mean_val)/self.std_val
         return image, annotation
+
+
+class Combined_Annotations(Image_Processor):
+    def __init__(self, values=[tf.constant(1, dtype='int8'),tf.constant(2, dtype='int8')]):
+        self.values = values
+
+    def parse(self, images, annotations, *args, **kwargs):
+        for value in self.values:
+            value = tf.constant(value, dtype=annotations.dtype)
+            annotations = tf.where(annotations == value, tf.constant(1, dtype=annotations.dtype), annotations)
+        return images, annotations
 
 
 class Cast_Data(Image_Processor):
