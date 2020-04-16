@@ -63,6 +63,21 @@ class Return_Images_Annotations(Image_Processor):
         return image_features['image'], image_features['annotation']
 
 
+class Ensure_Image_Proportions(Image_Processor):
+    def __init__(self, image_size=tf.constant(512)):
+        self.image_size = image_size
+
+    def parse(self, image, annotation, *args, **kwargs):
+        rows = tf.shape(image)[0]
+        if rows > self.image_size:
+            image = image[tf.subtract(rows,self.image_size)//2:-tf.subtract(rows,self.image_size)//2,...]
+            annotation = annotation[tf.subtract(rows,self.image_size)//2:-tf.subtract(rows,self.image_size)//2,...]
+        cols = tf.shape(image)[1]
+        if cols > self.image_size:
+            image = image[:,tf.subtract(rows,self.image_size)//2:-tf.subtract(rows,self.image_size)//2,...]
+            annotation = annotation[:,tf.subtract(rows,self.image_size)//2:-tf.subtract(rows,self.image_size)//2,...]
+        return image, annotation
+
 class Expand_Dimensions(Image_Processor):
     def __init__(self, axis=-1, on_images=True, on_annotations=False):
         self.axis = axis
