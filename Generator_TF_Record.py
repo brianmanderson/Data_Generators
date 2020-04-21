@@ -46,14 +46,17 @@ class Data_Generator_Class(object):
         else:
             data_set = data_sets[0]
         self.data_set = data_set
+        if debug:
+            data = next(iter(data_set))
+        else:
+            data = None
         if image_processors is not None:
             for image_processor in image_processors:
                 if type(image_processor) not in [dict, set]:
-                    if debug:
-                        data = next(iter(data_set))
+                    if data is not None:
                         if type(data) is tuple:
                             data = image_processor.parse(*data)
-                        else:
+                        elif data is not None:
                             data = image_processor.parse(data)
                     data_set = data_set.map(image_processor.parse, num_parallel_calls=tf.data.experimental.AUTOTUNE)
                 elif type(image_processor) in [dict, set]:

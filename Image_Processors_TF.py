@@ -214,6 +214,19 @@ class Clip_Images(Image_Processor):
         return image_features
 
 
+class Pull_Subset(Image_Processor):
+    def __init__(self, max_batch=32):
+        self.max_batch = max_batch
+
+    def parse(self, images, annotations, *args, **kwargs):
+        num_images = images.shape[0]
+        if num_images > self.max_batch:
+            random_index = tf.random.uniform(shape=[], minval=0, maxval=num_images - self.max_batch, dtype='int32')
+            images = images[random_index:random_index+self.max_batch,...]
+            annotations = annotations[random_index:random_index+self.max_batch,...]
+        return images, annotations
+
+
 class Pull_Cube(Image_Processor):
     def __init__(self, annotation_index=None, max_cubes=10, z_images=16, rows=100, cols=100, min_volume=0, min_voxels=0,
                  max_volume=np.inf, max_voxels=np.inf):
