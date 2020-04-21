@@ -25,8 +25,7 @@ def return_parse_function(image_feature_description):
 
 
 class Data_Generator_Class(object):
-    def __init__(self, record_names=None, shuffle=False, debug=False, image_processors=None):
-        self.shuffle = shuffle
+    def __init__(self, record_names=None):
         assert record_names is not None, 'Need to pass a list of record names!'
         data_sets = []
         self.total_examples = 0
@@ -46,12 +45,16 @@ class Data_Generator_Class(object):
         else:
             data_set = data_sets[0]
         self.data_set = data_set
+
+    def compile_data_set(self, debug=False, image_processors=None):
+        data_set = self.data_set
         if debug:
             data = next(iter(data_set))
         else:
             data = None
         if image_processors is not None:
             for image_processor in image_processors:
+                print(image_processor)
                 if type(image_processor) not in [dict, set]:
                     if data is not None:
                         if type(data) is tuple:
