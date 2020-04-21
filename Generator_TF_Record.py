@@ -46,7 +46,7 @@ class Data_Generator_Class(object):
             data_set = data_sets[0]
         self.data_set = data_set
 
-    def compile_data_set(self, debug=False, image_processors=None):
+    def compile_data_set(self, image_processors=None, debug=False):
         data_set = self.data_set
         if debug:
             data = next(iter(data_set))
