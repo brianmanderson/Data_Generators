@@ -68,9 +68,10 @@ class Ensure_Image_Proportions(Image_Processor):
         self.image_size = image_size
 
     def parse(self, image, annotation, *args, **kwargs):
-        image = tf.image.resize(image, [self.image_size, self.image_size])
-        annotation = tf.image.resize(annotation, [self.image_size, self.image_size])
+        image = tf.cast(tf.image.resize(image, [self.image_size, self.image_size]),image.dtype)
+        annotation = tf.cast(tf.image.resize(annotation, [self.image_size, self.image_size]), annotation.dtype)
         return image, annotation
+
 
 class Expand_Dimensions(Image_Processor):
     def __init__(self, axis=-1, on_images=True, on_annotations=False):
