@@ -65,7 +65,10 @@ class Return_Outputs(Image_Processor):
     def parse(self, image_features, *args, **kwargs):
         outputs = []
         for key in self.wanted_keys:
-            outputs.append(image_features[key])
+            if key in image_features:
+                outputs.append(image_features[key])
+            else:
+                print('{} not in image_features'.format(key))
         return outputs
 
 
