@@ -43,7 +43,7 @@ class Decode_Bounding_Boxes_Volumes_Spacing(Image_Processor):
 
     def parse(self, image_features, *args, **kwargs):
         if 'spacing' in image_features:
-            spacing = tf.io.decode_raw(image_features['spacing'], out_type='float')
+            spacing = tf.io.decode_raw(image_features['spacing'], out_type='float64')
             image_features['spacing'] = spacing
         for name in self.bbox_names:
             if name in image_features:
