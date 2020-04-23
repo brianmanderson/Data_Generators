@@ -58,9 +58,10 @@ class Decode_Bounding_Boxes_Volumes_Spacing(Image_Processor):
         return image_features
 
 
-class Return_Keys(Image_Processor):
+class Return_Outputs(Image_Processor):
     def __init__(self, wanted_keys=['image','annotation']):
         self.wanted_keys = wanted_keys
+
     def parse(self, image_features, *args, **kwargs):
         outputs = []
         for key in self.wanted_keys:
