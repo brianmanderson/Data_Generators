@@ -58,19 +58,24 @@ class Decode_Bounding_Boxes_Volumes_Spacing(Image_Processor):
         return image_features
 
 
-class Return_Images_Annotations(Image_Processor):
+class Return_Keys(Image_Processor):
+    def __init__(self, wanted_keys=['image','annotation']):
+        self.wanted_keys = wanted_keys
     def parse(self, image_features, *args, **kwargs):
-        return image_features['image'], image_features['annotation']
+        outputs = []
+        for key in self.wanted_keys:
+            outputs.append(image_features[key])
+        return outputs
 
 
 class Ensure_Image_Proportions(Image_Processor):
     def __init__(self, image_size=tf.constant(512)):
         self.image_size = image_size
 
-    def parse(self, image, annotation, *args, **kwargs):
-        image = tf.image.resize(image, [self.image_size, self.image_size])
-        annotation = tf.image.resize(annotation, [self.image_size, self.image_size])
-        return image, annotation
+    def parse(self, image_features, *args, **kwargs):
+        image_features['image'] = tf.image.resize(image_features['image'], [self.image_size, self.image_size])
+        image_features['annotation'] = tf.image.resize(image_features['annotation'], [self.image_size, self.image_size])
+        return image_features
 
 class Expand_Dimensions(Image_Processor):
     def __init__(self, axis=-1, on_images=True, on_annotations=False):
@@ -78,12 +83,12 @@ class Expand_Dimensions(Image_Processor):
         self.on_images = on_images
         self.on_annotations = on_annotations
 
-    def parse(self, image, annotation, *args, **kwargs):
+    def parse(self, image_features, *args, **kwargs):
         if self.on_images:
-            image = tf.expand_dims(image, axis=self.axis)
+            image_features['image'] = tf.expand_dims(image_features['image'], axis=self.axis)
         if self.on_annotations:
-            annotation = tf.expand_dims(annotation, axis=self.axis)
-        return image, annotation
+            image_features['annotation'] = tf.expand_dims(image_features['annotation'], axis=self.axis)
+        return image_features
 
 
 class Repeat_Channel(Image_Processor):
@@ -99,12 +104,12 @@ class Repeat_Channel(Image_Processor):
         self.on_images = on_images
         self.on_annotations = on_annotations
 
-    def parse(self, image, annotation, *args, **kwargs):
+    def parse(self, image_features, *args, **kwargs):
         if self.on_images:
-            image = tf.repeat(image, axis=self.axis, repeats=self.repeats)
+            image_features['image'] = tf.repeat(image_features['image'], axis=self.axis, repeats=self.repeats)
         if self.on_annotations:
-            annotation = tf.repeat(annotation, axis=self.axis, repeats=self.repeats)
-        return image, annotation
+            image_features['annotation'] = tf.repeat(image_features['annotation'], axis=self.axis, repeats=self.repeats)
+        return image_features
 
 
 class Normalize_Images(Image_Processor):
@@ -115,20 +120,22 @@ class Normalize_Images(Image_Processor):
         '''
         self.mean_val, self.std_val = tf.constant(mean_val, dtype='float32'), tf.constant(std_val, dtype='float32')
 
-    def parse(self, image, annotation, *args, **kwargs):
-        image = (image - self.mean_val)/self.std_val
-        return image, annotation
+    def parse(self, image_features, *args, **kwargs):
+        image_features['image'] = (image_features['image'] - self.mean_val)/self.std_val
+        return image_features
 
 
 class Combined_Annotations(Image_Processor):
     def __init__(self, values=[tf.constant(1, dtype='int8'),tf.constant(2, dtype='int8')]):
         self.values = values
 
-    def parse(self, images, annotations, *args, **kwargs):
+    def parse(self, image_features, *args, **kwargs):
         for value in self.values:
             value = tf.constant(value, dtype=annotations.dtype)
-            annotations = tf.where(annotations == value, tf.constant(1, dtype=annotations.dtype), annotations)
-        return images, annotations
+            image_features['annotation'] = tf.where(image_features['annotation'] == value,
+                                                    tf.constant(1, dtype=image_features['annotation'].dtype),
+                                                    image_features['annotation'])
+        return image_features
 
 
 class Cast_Data(Image_Processor):
@@ -136,12 +143,12 @@ class Cast_Data(Image_Processor):
         self.image_dtype = image_dtype
         self.annotation_dtype = annotation_dtype
 
-    def parse(self, images, annotations, *args, **kwargs):
+    def parse(self, image_features, *args, **kwargs):
         if self.image_dtype is not None:
-            images = tf.dtypes.cast(images, self.image_dtype)
+            image_features['image'] = tf.dtypes.cast(image_features['image'], self.image_dtype)
         if self.annotation_dtype is not None:
-            annotations = tf.dtypes.cast(annotations, self.annotation_dtype)
-        return images, annotations
+            image_features['annotation'] = tf.dtypes.cast(image_features['annotation'], self.annotation_dtype)
+        return image_features
 
 
 class Threshold_Images(Image_Processor):
@@ -156,10 +163,10 @@ class Threshold_Images(Image_Processor):
         self.lower = tf.constant(lower_bound, dtype='float32')
         self.upper = tf.constant(upper_bound, dtype='float32')
 
-    def parse(self, image, annotation, *args, **kwargs):
-        image = tf.where(image > self.upper, self.upper, image)
-        image = tf.where(image < self.lower, self.lower, image)
-        return image, annotation
+    def parse(self, image_features, *args, **kwargs):
+        image_features['image'] = tf.where(image_features['image'] > self.upper, self.upper, image_features['image'])
+        image_features['image'] = tf.where(image_features['image'] < self.lower, self.lower, image_features['image'])
+        return image_features
 
 
 class Clip_Images(Image_Processor):
