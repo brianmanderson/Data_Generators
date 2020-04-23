@@ -68,7 +68,7 @@ class Return_Outputs(Image_Processor):
             if key in image_features:
                 outputs.append(image_features[key])
             else:
-                print('{} not in image_features'.format(key))
+                print('WARNING\n\n\n{} not in image_features\n\n\n'.format(key))
         return outputs
 
 
