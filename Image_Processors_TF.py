@@ -73,12 +73,26 @@ class Return_Outputs(Image_Processor):
 
 
 class Ensure_Image_Proportions(Image_Processor):
-    def __init__(self, image_size=tf.constant(512)):
-        self.image_size = image_size
+    def __init__(self, z_images=None, image_rows=None, image_cols=None):
+        self.z_images = z_images
+        self.image_rows = image_rows
+        self.image_cols = image_cols
 
     def parse(self, image_features, *args, **kwargs):
-        image_features['image'] = tf.image.resize(image_features['image'], [self.image_size, self.image_size])
-        image_features['annotation'] = tf.image.resize(image_features['annotation'], [self.image_size, self.image_size])
+        z_images, image_rows, image_cols = self.z_images, self.image_rows, self.image_cols
+        image_shape = image_features['image'].shape
+        if image_rows is None:
+            image_rows = image_shape[1]
+        if image_cols is None:
+            image_cols = image_shape[2]
+        image_features['image'] = tf.image.resize_with_pad(image_features['image'], target_width=image_rows,
+                                                           target_height=image_cols)
+        image_features['annotation'] = tf.image.resize_with_pad(image_features['annotation'], target_width=image_rows,
+                                                                target_height=image_cols)
+        if self.z_images is not None:
+            dif = tf.subtract(z_images,image_shape[0])
+            image_features['image'] = tf.concat([image_features['image'],tf.reverse(image_features['image'], axis=[0])[:dif]],axis=0)
+            image_features['annotation'] = tf.concat([image_features['annotation'],tf.reverse(image_features['annotation'], axis=[0])[:dif]],axis=0)
         return image_features
 
 class Expand_Dimensions(Image_Processor):
