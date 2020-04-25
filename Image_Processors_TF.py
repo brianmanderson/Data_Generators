@@ -59,6 +59,10 @@ class Decode_Bounding_Boxes_Volumes_Spacing(Image_Processor):
 
 
 class Return_Outputs(Image_Processor):
+    '''
+    No image processors should occur after this, this will turn your dictionary into a set of tensors, usually
+    image, annotation
+    '''
     def __init__(self, wanted_keys=['image','annotation']):
         self.wanted_keys = wanted_keys
 
@@ -73,6 +77,9 @@ class Return_Outputs(Image_Processor):
 
 
 class Pad_Z_Images_w_Reflections(Image_Processor):
+    '''
+    This will not work for parallelized.. because the z dimension is None unknown to start
+    '''
     def __init__(self, z_images=32):
         self.z_images = tf.constant(z_images)
 
@@ -89,10 +96,12 @@ class Ensure_Image_Proportions(Image_Processor):
         self.image_cols = tf.constant(image_cols)
 
     def parse(self, image_features, *args, **kwargs):
-        image_features['image'] = tf.image.resize_with_pad(image_features['image'], target_width=self.image_rows,
-                                                           target_height=self.image_cols)
-        image_features['annotation'] = tf.image.resize_with_pad(image_features['annotation'], target_width=self.image_rows,
-                                                                target_height=self.image_cols)
+        # image_features['image'] = tf.image.resize_with_crop_or_pad(image_features['image'], target_width=self.image_rows,
+        #                                                            target_height=self.image_cols)
+        # image_features['annotation'] = tf.image.resize_with_crop_or_pad(image_features['annotation'], target_width=self.image_rows,
+        #                                                                 target_height=self.image_cols)
+        image_features['image'] = tf.image.resize(image_features['image'],(self.image_rows, self.image_cols))
+        image_features['annotation'] = tf.image.resize(image_features['annotation'],(self.image_rows, self.image_cols))
         return image_features
 
 class Expand_Dimensions(Image_Processor):
@@ -149,7 +158,7 @@ class Combined_Annotations(Image_Processor):
 
     def parse(self, image_features, *args, **kwargs):
         for value in self.values:
-            value = tf.constant(value, dtype=annotations.dtype)
+            value = tf.constant(value, dtype=image_features['annotation'].dtype)
             image_features['annotation'] = tf.where(image_features['annotation'] == value,
                                                     tf.constant(1, dtype=image_features['annotation'].dtype),
                                                     image_features['annotation'])
@@ -166,6 +175,25 @@ class Cast_Data(Image_Processor):
             image_features['image'] = tf.dtypes.cast(image_features['image'], self.image_dtype)
         if self.annotation_dtype is not None:
             image_features['annotation'] = tf.dtypes.cast(image_features['annotation'], self.annotation_dtype)
+        return image_features
+
+
+class Flip_Images(Image_Processor):
+    def __init__(self, flip_lr=True, flip_up_down=True):
+        self.flip_lr = flip_lr
+        self.flip_up_down = flip_up_down
+
+    def parse(self, image_features, *args, **kwargs):
+        if self.flip_lr:
+            if tf.random.uniform(shape=[], minval=0, maxval=2, dtype='int32') == tf.constant(1,dtype='int32'):
+                print('flipped lr')
+                image_features['image'] = tf.image.flip_left_right(image_features['image'])
+                image_features['annotation'] = tf.image.flip_left_right(image_features['annotation'])
+        if self.flip_up_down:
+            if tf.random.uniform(shape=[], minval=0, maxval=2, dtype='int32') == tf.constant(1, dtype='int32'):
+                print('flipped ud')
+                image_features['image'] = tf.image.flip_up_down(image_features['image'])
+                image_features['annotation'] = tf.image.flip_up_down(image_features['annotation'])
         return image_features
 
 
