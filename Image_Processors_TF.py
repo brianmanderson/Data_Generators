@@ -96,12 +96,11 @@ class Ensure_Image_Proportions(Image_Processor):
         self.image_cols = tf.constant(image_cols)
 
     def parse(self, image_features, *args, **kwargs):
+        assert len(image_features['image'].shape) > 2, 'You should do an expand_dimensions before this!'
         image_features['image'] = tf.image.resize_with_crop_or_pad(image_features['image'], target_width=self.image_rows,
                                                                    target_height=self.image_cols)
         image_features['annotation'] = tf.image.resize_with_crop_or_pad(image_features['annotation'], target_width=self.image_rows,
                                                                         target_height=self.image_cols)
-        # image_features['image'] = tf.image.resize_with_pad(image_features['image'],target_height=self.image_rows, target_width=self.image_cols)
-        # image_features['annotation'] = tf.image.resize_with_pad(image_features['annotation'],target_height=self.image_rows, target_width=self.image_cols)
         return image_features
 
 class Expand_Dimensions(Image_Processor):
