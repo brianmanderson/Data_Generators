@@ -63,17 +63,23 @@ class Return_Outputs(Image_Processor):
     No image processors should occur after this, this will turn your dictionary into a set of tensors, usually
     image, annotation
     '''
-    def __init__(self, wanted_keys=['image','annotation']):
-        self.wanted_keys = wanted_keys
+    def __init__(self, wanted_keys_dict={'inputs':['image'],'outputs':['annotation']}):
+        self.wanted_keys_dict = wanted_keys_dict
 
     def parse(self, image_features, *args, **kwargs):
+        inputs = []
         outputs = []
-        for key in self.wanted_keys:
+        for key in self.wanted_keys_dict['inputs']:
+            if key in image_features:
+                inputs.append(image_features[key])
+            else:
+                print('WARNING\n\n\n{} not in image_features\n\n\n'.format(key))
+        for key in self.wanted_keys_dict['outputs']:
             if key in image_features:
                 outputs.append(image_features[key])
             else:
                 print('WARNING\n\n\n{} not in image_features\n\n\n'.format(key))
-        return outputs
+        return tuple(inputs), tuple(outputs)
 
 
 class Pad_Z_Images_w_Reflections(Image_Processor):
@@ -138,6 +144,14 @@ class Repeat_Channel(Image_Processor):
         return image_features
 
 
+class Return_Lung(Image_Processor):
+    def __init__(self, dual_output=False):
+        self.dual_output = dual_output
+
+    def parse(self, image_features, *args, **kwargs):
+        if self.dual_output:
+            image_features['lung'] = tf.cast(image_features['annotation'] > 0,dtype='float32')
+        return image_features
 class Normalize_Images(Image_Processor):
     def __init__(self, mean_val=0, std_val=1):
         '''
@@ -165,15 +179,17 @@ class Combined_Annotations(Image_Processor):
 
 
 class Cast_Data(Image_Processor):
-    def __init__(self, image_dtype=None, annotation_dtype=None):
-        self.image_dtype = image_dtype
-        self.annotation_dtype = annotation_dtype
+    def __init__(self, key_type_dict=None):
+        '''
+
+        :param key_type_dict: A dictionary of keys and datatypes wanted {'image':'float32'}
+        '''
+        self.key_type_dict = key_type_dict
 
     def parse(self, image_features, *args, **kwargs):
-        if self.image_dtype is not None:
-            image_features['image'] = tf.dtypes.cast(image_features['image'], self.image_dtype)
-        if self.annotation_dtype is not None:
-            image_features['annotation'] = tf.dtypes.cast(image_features['annotation'], self.annotation_dtype)
+        for key in self.key_type_dict:
+            if key in image_features:
+                image_features[key] = tf.cast(image_features[key], dtype=self.key_type_dict[key])
         return image_features
 
 
