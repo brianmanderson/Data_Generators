@@ -24,37 +24,11 @@ class Decode_Images_Annotations(Image_Processor):
                                       (image_features['rows'], image_features['cols']))
             annotation_image = tf.reshape(tf.io.decode_raw(image_features['annotation'], out_type='int8'),
                                           (image_features['rows'], image_features['cols']))
-        image_features['image'] = tensor_image
-        image_features['annotation'] = annotation_image
-        return image_features
-
-
-class Decode_Bounding_Boxes_Volumes_Spacing(Image_Processor):
-    def __init__(self, annotation_indexes=None):
-        '''
-        annotation_indexes: list of indexes [1,2,3...]
-        '''
-        self.bbox_names = []
-        self.volume_names = []
-        if annotation_indexes is not None:
-            for index in annotation_indexes:
-                self.volume_names.append('volumes_{}'.format(index))
-                self.bbox_names.append('bounding_boxes_{}'.format(index))
-
-    def parse(self, image_features, *args, **kwargs):
         if 'spacing' in image_features:
             spacing = tf.io.decode_raw(image_features['spacing'], out_type='float32')
             image_features['spacing'] = spacing
-        for name in self.bbox_names:
-            if name in image_features:
-                bboxes = tf.io.decode_raw(image_features[name], out_type='int32')
-                bboxes = tf.reshape(bboxes,(len(bboxes)//6,6))
-                image_features[name] = bboxes
-        for name in self.volume_names:
-            if name in image_features:
-                volumes = tf.io.decode_raw(image_features[name], out_type='float')
-                volumes = tf.reshape(volumes, (1, len(volumes)))
-                image_features[name] = volumes
+        image_features['image'] = tensor_image
+        image_features['annotation'] = annotation_image
         return image_features
 
 
@@ -296,7 +270,7 @@ class Pull_Subset(Image_Processor):
         return images, annotations
 
 
-class Pull_Cube(Image_Processor):
+class Pull_Bounding_Box(Image_Processor):
     def __init__(self, annotation_index=None, max_cubes=10, z_images=16, rows=100, cols=100, min_volume=0, min_voxels=0,
                  max_volume=np.inf, max_voxels=np.inf):
         '''
@@ -315,8 +289,15 @@ class Pull_Cube(Image_Processor):
 
     def parse(self, image_features, *args, **kwargs):
         if self.annotation_index is not None:
-            bounding_boxes = image_features['bounding_boxes_{}'.format(self.annotation_index)]
-            volumes = image_features['volumes_{}'.format(self.annotation_index)]
+            z_start = image_features['bounding_boxes_z_start_{}'.format(self.annotation_index)]
+            r_start = image_features['bounding_boxes_r_start_{}'.format(self.annotation_index)]
+            c_start = image_features['bounding_boxes_c_start_{}'.format(self.annotation_index)]
+            z_stop = image_features['bounding_boxes_z_stop_{}'.format(self.annotation_index)]
+            r_stop = image_features['bounding_boxes_r_stop_{}'.format(self.annotation_index)]
+            c_stop = image_features['bounding_boxes_c_stop_{}'.format(self.annotation_index)]
+            image_features['image'] = image_features['image'][z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
+            image_features['annotation'] = image_features['annotation'][z_start:z_stop,r_start:r_stop,c_start:c_stop,...]
+        return image_features
 
 
 if __name__ == '__main__':
