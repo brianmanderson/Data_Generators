@@ -38,6 +38,8 @@ class Return_Outputs(Image_Processor):
     image, annotation
     '''
     def __init__(self, wanted_keys_dict={'inputs':['image'],'outputs':['annotation']}):
+        assert type(wanted_keys_dict) is dict, 'You need to pass a dictionary to Return_Outputs in the form of ' \
+                                               '{"inputs":["image"],"outputs":["annotation"]}, etc.'
         self.wanted_keys_dict = wanted_keys_dict
 
     def parse(self, image_features, *args, **kwargs):
@@ -289,6 +291,10 @@ class Pull_Bounding_Box(Image_Processor):
 
     def parse(self, image_features, *args, **kwargs):
         if self.annotation_index is not None:
+            keys = ['bounding_boxes_{}_{}_{}'.format(i,j,self.annotation_index) for i in ['r','z','c'] for j in ['start','stop']]
+            for key in keys:
+                if key not in image_features:
+                    return image_features
             z_start = image_features['bounding_boxes_z_start_{}'.format(self.annotation_index)]
             r_start = image_features['bounding_boxes_r_start_{}'.format(self.annotation_index)]
             c_start = image_features['bounding_boxes_c_start_{}'.format(self.annotation_index)]
