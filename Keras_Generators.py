@@ -3,7 +3,7 @@ import tensorflow.python.keras.backend as K
 from tensorflow.python.keras.models import load_model
 from skimage import morphology
 import os, glob, pickle
-from .Image_Processors.Image_Processors_Keras_Generator import *
+from .Image_Processors_Module.Image_Processors_Keras_Generator import *
 
 
 def dice_coef_3D(y_true, y_pred, smooth=0.0001):
