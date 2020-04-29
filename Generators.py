@@ -2,10 +2,8 @@ from tensorflow.python.keras.utils import Sequence, to_categorical
 import tensorflow.python.keras.backend as K
 from tensorflow.python.keras.models import load_model
 from skimage import morphology
-import os, glob, pickle, sys, copy
-import SimpleITK as sitk
-import numpy as np
-from .Image_Processors import *
+import os, glob, pickle
+from .Image_Processors.Image_Processors_Keras_Generator import *
 
 
 def dice_coef_3D(y_true, y_pred, smooth=0.0001):

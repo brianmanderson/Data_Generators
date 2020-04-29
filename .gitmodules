@@ -7,3 +7,6 @@
 [submodule "Resample_Class"]
 	path = Resample_Class
 	url = https://github.com/brianmanderson/Resample_Class.git
+[submodule "Image_Processors"]
+	path = Image_Processors
+	url = https://github.com/brianmanderson/Image_Processors.git
