@@ -38,6 +38,10 @@ class Data_Generator_Class(object):
                 fid.close()
                 self.total_examples += int(examples)
             parsed_image_dataset = raw_dataset.map(return_parse_function(features))
+            d_types = load_obj(record_name.replace('.tfrecord', '_dtype.pkl'))
+            Decode = Decode_Images_Annotations(d_type_dict=d_types)
+            parsed_image_dataset = parsed_image_dataset.map(Decode.parse,
+                                                            num_parallel_calls=tf.data.experimental.AUTOTUNE)
             data_sets.append(parsed_image_dataset)
         if len(data_sets) > 1:
             data_sets = tuple(data_sets)
