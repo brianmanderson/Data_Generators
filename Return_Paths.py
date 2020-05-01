@@ -2,6 +2,8 @@ import os
 
 class Path_Return_Class(object):
     def __init__(self, base_path, morfeus_path, save_model=True, is_keras_model=True):
+        if is_keras_model:
+            print('This is default set to be for old keras models, this will default to False in the future')
         self.base_path = base_path
         self.morfeus_path = morfeus_path
         self.save_model = save_model
