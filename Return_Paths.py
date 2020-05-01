@@ -1,10 +1,11 @@
 import os
 
 class Path_Return_Class(object):
-    def __init__(self, base_path, morfeus_path, save_model=True):
+    def __init__(self, base_path, morfeus_path, save_model=True, is_keras_model=False):
         self.base_path = base_path
         self.morfeus_path = morfeus_path
         self.save_model = save_model
+        self.is_keras_model = is_keras_model
         for path in [base_path,morfeus_path]:
             assert os.path.exists(path), print(path + ' path does not exist')
 
@@ -37,7 +38,8 @@ class Path_Return_Class(object):
             self.make_paths(model_path_out,tensorboard_output)
         else:
             self.make_paths(tensorboard_output)
-        model_path_out = os.path.join(model_path_out,'weights-improvement-best.hdf5')
+        if self.is_keras_model:
+            model_path_out = os.path.join(model_path_out,'weights-improvement-best.hdf5')
         self.model_path_out = model_path_out
         self.tensorboard_path_out = tensorboard_output
         return None
