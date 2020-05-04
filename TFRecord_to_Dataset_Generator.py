@@ -25,7 +25,11 @@ def return_parse_function(image_feature_description):
 
 
 class Data_Generator_Class(object):
-    def __init__(self, record_names=None):
+    def __init__(self, record_names=None, in_parallel=True):
+        if in_parallel:
+            self.in_parallel = tf.data.experimental.AUTOTUNE
+        else:
+            self.in_parallel = None
         assert record_names is not None, 'Need to pass a list of record names!'
         data_sets = []
         self.total_examples = 0
@@ -40,8 +44,7 @@ class Data_Generator_Class(object):
             parsed_image_dataset = raw_dataset.map(return_parse_function(features))
             d_types = load_obj(record_name.replace('.tfrecord', '_dtype.pkl'))
             Decode = Decode_Images_Annotations(d_type_dict=d_types)
-            parsed_image_dataset = parsed_image_dataset.map(Decode.parse,
-                                                            num_parallel_calls=tf.data.experimental.AUTOTUNE)
+            parsed_image_dataset = parsed_image_dataset.map(Decode.parse, num_parallel_calls=self.in_parallel)
             data_sets.append(parsed_image_dataset)
         if len(data_sets) > 1:
             data_sets = tuple(data_sets)
@@ -66,7 +69,7 @@ class Data_Generator_Class(object):
                             data = image_processor.parse(*data)
                         elif data is not None:
                             data = image_processor.parse(data)
-                    data_set = data_set.map(image_processor.parse, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+                    data_set = data_set.map(image_processor.parse, num_parallel_calls=self.in_parallel)
                 elif type(image_processor) in [dict, set]:
                     data = None
                     value = None
@@ -96,9 +99,13 @@ class Data_Generator_Class(object):
                             data_set = data_set.repeat()
                     elif 'unbatch' in image_processor:
                         data_set = data_set.unbatch()
+                    elif 'prefetch' in image_processor:
+                        if value is None:
+                            value = tf.data.experimental.AUTOTUNE
+                        data_set = data_set.prefetch(value)
                 else:
                     raise ModuleNotFoundError('Need to provide either a image processor, dict, or set!')
-        self.data_set = data_set.prefetch(tf.data.experimental.AUTOTUNE)
+        self.data_set = data_set
 
     def __len__(self):
         return self.total_examples
