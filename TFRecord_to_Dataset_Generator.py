@@ -34,7 +34,7 @@ class Data_Generator_Class(object):
         data_sets = []
         self.total_examples = 0
         for record_name in record_names:
-            raw_dataset = tf.data.TFRecordDataset([record_name], num_parallel_reads=tf.data.experimental.AUTOTUNE)
+            raw_dataset = tf.data.TFRecordDataset([record_name], num_parallel_reads=self.in_parallel)
             features = load_obj(record_name.replace('.tfrecord', '_features.pkl'))
             if os.path.exists(record_name.replace('.tfrecord','_Num_Examples.txt')):
                 fid = open(record_name.replace('.tfrecord','_Num_Examples.txt'))
@@ -99,13 +99,9 @@ class Data_Generator_Class(object):
                             data_set = data_set.repeat()
                     elif 'unbatch' in image_processor:
                         data_set = data_set.unbatch()
-                    elif 'prefetch' in image_processor:
-                        if value is None:
-                            value = tf.data.experimental.AUTOTUNE
-                        data_set = data_set.prefetch(value)
                 else:
                     raise ModuleNotFoundError('Need to provide either a image processor, dict, or set!')
-        self.data_set = data_set
+        self.data_set = data_set.prefetch(tf.data.experimental.AUTOTUNE)
 
     def __len__(self):
         return self.total_examples
