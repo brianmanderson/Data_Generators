@@ -25,7 +25,8 @@ def return_parse_function(image_feature_description):
 
 
 class Data_Generator_Class(object):
-    def __init__(self, record_names=None, in_parallel=True):
+    def __init__(self, record_names=None, in_parallel=True, delete_old_cache=False):
+        self.delete_old_cache = delete_old_cache
         if in_parallel:
             self.in_parallel = tf.data.experimental.AUTOTUNE
         else:
@@ -87,9 +88,10 @@ class Data_Generator_Class(object):
                             data_set = data_set.cache()
                         else:
                             assert os.path.isdir(value), 'Pass a path to {cache:path}, not a file!'
-                            existing_files = glob.glob(os.path.join(value,'*cache.tfrecord*')) # Delete previous ones
-                            for file in existing_files:
-                                os.remove(file)
+                            if self.delete_old_cache:
+                                existing_files = glob.glob(os.path.join(value,'*cache.tfrecord*')) # Delete previous ones
+                                for file in existing_files:
+                                    os.remove(file)
                             path = os.path.join(value,'cache.tfrecord')
                             data_set = data_set.cache(path)
                     elif 'repeat' in image_processor:
