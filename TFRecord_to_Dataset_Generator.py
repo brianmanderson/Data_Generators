@@ -87,7 +87,9 @@ class Data_Generator_Class(object):
                         if value is None:
                             data_set = data_set.cache()
                         else:
-                            assert os.path.isdir(value), 'Pass a path to {cache:path}, not a file!'
+                            assert not os.path.isfile(value), 'Pass a path to {cache:path}, not a file!'
+                            if not os.path.exists(value):
+                                os.makedirs(value)
                             if self.delete_old_cache:
                                 existing_files = glob.glob(os.path.join(value,'*cache.tfrecord*')) # Delete previous ones
                                 for file in existing_files:
