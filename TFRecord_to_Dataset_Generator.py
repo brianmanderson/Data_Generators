@@ -25,33 +25,37 @@ def return_parse_function(image_feature_description):
 
 
 class Data_Generator_Class(object):
-    def __init__(self, record_names=None, in_parallel=True, delete_old_cache=False):
+    def __init__(self, records_path=None, in_parallel=True, delete_old_cache=False):
+        '''
+        :param records_path: Path to a folder full of records files
+        :param in_parallel:
+        :param delete_old_cache:
+        '''
         self.delete_old_cache = delete_old_cache
         if in_parallel:
             self.in_parallel = tf.data.experimental.AUTOTUNE
         else:
             self.in_parallel = None
-        assert record_names is not None, 'Need to pass a list of record names!'
-        data_sets = []
+        assert records_path is not None, 'Need to pass a list of record names!'
+        assert os.path.exists(records_path), 'Records path needs to exist'
+        record_names = [os.path.join(records_path,i) for i in os.listdir(records_path) if i.endswith('.tfrecord')]
+        raw_dataset = tf.data.TFRecordDataset(record_names, num_parallel_reads=self.in_parallel)
+        features = None
+        d_types = None
         self.total_examples = 0
         for record_name in record_names:
-            raw_dataset = tf.data.TFRecordDataset([record_name], num_parallel_reads=self.in_parallel)
-            features = load_obj(record_name.replace('.tfrecord', '_features.pkl'))
+            if features is None:
+                features = load_obj(record_name.replace('.tfrecord', '_features.pkl'))
+            if d_types is None:
+                d_types = load_obj(record_name.replace('.tfrecord', '_dtype.pkl'))
             if os.path.exists(record_name.replace('.tfrecord','_Num_Examples.txt')):
                 fid = open(record_name.replace('.tfrecord','_Num_Examples.txt'))
                 examples = fid.readline()
                 fid.close()
                 self.total_examples += int(examples)
-            parsed_image_dataset = raw_dataset.map(return_parse_function(features))
-            d_types = load_obj(record_name.replace('.tfrecord', '_dtype.pkl'))
-            Decode = Decode_Images_Annotations(d_type_dict=d_types)
-            parsed_image_dataset = parsed_image_dataset.map(Decode.parse, num_parallel_calls=self.in_parallel)
-            data_sets.append(parsed_image_dataset)
-        if len(data_sets) > 1:
-            data_sets = tuple(data_sets)
-            data_set = tf.data.Dataset.zip(tuple(data_sets))
-        else:
-            data_set = data_sets[0]
+        parsed_image_dataset = raw_dataset.map(return_parse_function(features))
+        Decode = Decode_Images_Annotations(d_type_dict=d_types)
+        data_set = parsed_image_dataset.map(Decode.parse, num_parallel_calls=self.in_parallel)
         self.data_set = data_set
 
     def compile_data_set(self, image_processors=None, debug=False):
