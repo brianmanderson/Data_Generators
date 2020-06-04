@@ -37,25 +37,31 @@ class Data_Generator_Class(object):
         else:
             self.in_parallel = None
         assert records_path is not None, 'Need to pass a list of record names!'
-        assert os.path.exists(records_path), 'Records path needs to exist'
-        record_names = [os.path.join(records_path,i) for i in os.listdir(records_path) if i.endswith('.tfrecord')]
-        raw_dataset = tf.data.TFRecordDataset(record_names, num_parallel_reads=self.in_parallel)
-        features = None
-        d_types = None
         self.total_examples = 0
-        for record_name in record_names:
-            if features is None:
-                features = load_obj(record_name.replace('.tfrecord', '_features.pkl'))
-            if d_types is None:
-                d_types = load_obj(record_name.replace('.tfrecord', '_dtype.pkl'))
-            if os.path.exists(record_name.replace('.tfrecord','_Num_Examples.txt')):
-                fid = open(record_name.replace('.tfrecord','_Num_Examples.txt'))
-                examples = fid.readline()
-                fid.close()
-                self.total_examples += int(examples)
-        parsed_image_dataset = raw_dataset.map(return_parse_function(features))
-        Decode = Decode_Images_Annotations(d_type_dict=d_types)
-        data_set = parsed_image_dataset.map(Decode.parse, num_parallel_calls=self.in_parallel)
+        data_set = None
+        for record_path in records_path:
+            assert os.path.isdir(record_path), 'Pass a directory, not a tfrecord'
+            record_names = [os.path.join(record_path,i) for i in os.listdir(records_path) if i.endswith('.tfrecord')]
+            raw_dataset = tf.data.TFRecordDataset(record_names, num_parallel_reads=self.in_parallel)
+            features = None
+            d_types = None
+            for record_name in record_names:
+                if features is None:
+                    features = load_obj(record_name.replace('.tfrecord', '_features.pkl'))
+                if d_types is None:
+                    d_types = load_obj(record_name.replace('.tfrecord', '_dtype.pkl'))
+                if os.path.exists(record_name.replace('.tfrecord','_Num_Examples.txt')):
+                    fid = open(record_name.replace('.tfrecord','_Num_Examples.txt'))
+                    examples = fid.readline()
+                    fid.close()
+                    self.total_examples += int(examples)
+            parsed_image_dataset = raw_dataset.map(return_parse_function(features))
+            Decode = Decode_Images_Annotations(d_type_dict=d_types)
+            decoded_dataset = parsed_image_dataset.map(Decode.parse, num_parallel_calls=self.in_parallel)
+            if data_set is None:
+                data_set = decoded_dataset
+            else:
+                data_set = data_set.concatenate(decoded_dataset)
         self.data_set = data_set
 
     def compile_data_set(self, image_processors=None, debug=False):
