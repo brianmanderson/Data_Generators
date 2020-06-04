@@ -41,7 +41,7 @@ class Data_Generator_Class(object):
         data_set = None
         for record_path in records_path:
             assert os.path.isdir(record_path), 'Pass a directory, not a tfrecord'
-            record_names = [os.path.join(record_path,i) for i in os.listdir(records_path) if i.endswith('.tfrecord')]
+            record_names = [os.path.join(record_path,i) for i in os.listdir(record_path) if i.endswith('.tfrecord')]
             raw_dataset = tf.data.TFRecordDataset(record_names, num_parallel_reads=self.in_parallel)
             features = None
             d_types = None
