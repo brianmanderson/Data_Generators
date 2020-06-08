@@ -25,7 +25,7 @@ def return_parse_function(image_feature_description):
 
 
 class Data_Generator_Class(object):
-    def __init__(self, record_paths=None, in_parallel=True, delete_old_cache=False):
+    def __init__(self, record_paths=None, in_parallel=True, delete_old_cache=False, shuffle=False):
         '''
         :param record_paths: List of paths to a folder full of records files
         :param in_parallel:
@@ -42,6 +42,10 @@ class Data_Generator_Class(object):
         for record_path in record_paths:
             assert os.path.isdir(record_path), 'Pass a directory, not a tfrecord'
             record_names = [os.path.join(record_path,i) for i in os.listdir(record_path) if i.endswith('.tfrecord')]
+            if shuffle:
+                perm = np.arange(len(record_names))
+                np.random.shuffle(perm)
+                record_names = list(np.asarray(record_names)[perm])
             raw_dataset = tf.data.TFRecordDataset(record_names, num_parallel_reads=self.in_parallel)
             features = None
             d_types = None
