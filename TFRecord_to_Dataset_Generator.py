@@ -25,9 +25,9 @@ def return_parse_function(image_feature_description):
 
 
 class Data_Generator_Class(object):
-    def __init__(self, records_path=None, in_parallel=True, delete_old_cache=False):
+    def __init__(self, record_paths=None, in_parallel=True, delete_old_cache=False):
         '''
-        :param records_path: Path to a folder full of records files
+        :param record_paths: List of paths to a folder full of records files
         :param in_parallel:
         :param delete_old_cache:
         '''
@@ -36,10 +36,10 @@ class Data_Generator_Class(object):
             self.in_parallel = tf.data.experimental.AUTOTUNE
         else:
             self.in_parallel = None
-        assert records_path is not None, 'Need to pass a list of record names!'
+        assert record_paths is not None, 'Need to pass a list of record names!'
         self.total_examples = 0
         data_set = None
-        for record_path in records_path:
+        for record_path in record_paths:
             assert os.path.isdir(record_path), 'Pass a directory, not a tfrecord'
             record_names = [os.path.join(record_path,i) for i in os.listdir(record_path) if i.endswith('.tfrecord')]
             raw_dataset = tf.data.TFRecordDataset(record_names, num_parallel_reads=self.in_parallel)
