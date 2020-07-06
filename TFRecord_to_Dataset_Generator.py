@@ -37,6 +37,7 @@ class Data_Generator_Class(object):
         else:
             self.in_parallel = None
         assert record_paths is not None, 'Need to pass a list of record names!'
+        assert type(record_paths) is list, "Provide a list of record paths"
         self.total_examples = 0
         data_set = None
         for record_path in record_paths:
