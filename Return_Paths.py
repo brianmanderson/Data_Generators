@@ -63,6 +63,16 @@ def find_base_dir():
     return base_path
 
 
+def find_user_base():
+    base_path = '.'
+    for _ in range(20):
+        if 'Morfeus' in os.listdir(base_path):
+            break
+        else:
+            base_path = os.path.join(base_path,'..')
+    return base_path
+
+
 def find_raid_dir():
     base_path = os.path.join('.')
     for _ in range(20):
