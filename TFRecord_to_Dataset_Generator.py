@@ -24,13 +24,15 @@ def return_parse_function(image_feature_description):
     return _parse_image_function
 
 
-class Data_Generator_Class(object):
-    def __init__(self, record_paths=None, in_parallel=True, delete_old_cache=False, shuffle=False):
-        '''
+class DataGeneratorClass(object):
+    def __init__(self, record_paths=None, in_parallel=True, delete_old_cache=False, shuffle=False, debug=False):
+        """
         :param record_paths: List of paths to a folder full of records files
-        :param in_parallel:
-        :param delete_old_cache:
-        '''
+        :param in_parallel: Boolean, perform the actions in parallel?
+        :param delete_old_cache: Boolean, delete the previous cache?
+        :param shuffle: Boolean, shuffle the record names?
+        :param debug: Boolean, debug process
+        """
         self.delete_old_cache = delete_old_cache
         if in_parallel:
             self.in_parallel = tf.data.experimental.AUTOTUNE
@@ -61,7 +63,10 @@ class Data_Generator_Class(object):
                     fid.close()
                     self.total_examples += int(examples)
             parsed_image_dataset = raw_dataset.map(return_parse_function(features))
-            Decode = Decode_Images_Annotations(d_type_dict=d_types)
+            Decode = DecodeImagesAnnotations(d_type_dict=d_types)
+            if debug:
+                data = next(iter(parsed_image_dataset))
+                data = Decode.parse(image_features=data)
             decoded_dataset = parsed_image_dataset.map(Decode.parse, num_parallel_calls=self.in_parallel)
             if data_set is None:
                 data_set = decoded_dataset
@@ -125,6 +130,11 @@ class Data_Generator_Class(object):
     def __len__(self):
         return self.total_examples
 
+
+class Data_Generator_Class(DataGeneratorClass):
+    def __init__(self, **kwargs):
+        print('Please move from using Data_Generator_Class to DataGeneratorClass, same arguments are passed')
+        super().__init__(**kwargs)
 
 
 if __name__ == '__main__':
