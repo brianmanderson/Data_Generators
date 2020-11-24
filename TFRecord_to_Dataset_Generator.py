@@ -43,7 +43,7 @@ class DataGeneratorClass(object):
         self.total_examples = 0
         data_set = None
         for record_path in record_paths:
-            assert os.path.isdir(record_path), 'Pass a directory, not a tfrecord'
+            assert os.path.isdir(record_path), 'Pass a directory, not a tfrecord\n{}'.format(record_path)
             record_names = [os.path.join(record_path,i) for i in os.listdir(record_path) if i.endswith('.tfrecord')]
             if shuffle:
                 perm = np.arange(len(record_names))
