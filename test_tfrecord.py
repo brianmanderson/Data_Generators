@@ -3,8 +3,8 @@ __author__ = 'Brian M Anderson'
 
 import unittest
 import os
-from Image_Processors_Module.Image_Processors_TFRecord import dictionary_to_tf_record, tf, load_obj
-from Image_Processors_Module.Image_Processors_DataSet import DecodeImagesAnnotations
+from .Image_Processors_Module.src.Processors.MakeTFRecordProcessors import dictionary_to_tf_record, tf, load_obj
+from .Image_Processors_Module.src.Processors.TFDataSetProcessors import DecodeImagesAnnotations
 import numpy as np
 
 
