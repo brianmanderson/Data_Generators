@@ -44,7 +44,7 @@ class DataGeneratorClass(object):
         data_set = None
         for record_path in record_paths:
             assert os.path.isdir(record_path), 'Pass a directory, not a tfrecord\n{}'.format(record_path)
-            record_names = [os.path.join(record_path,i) for i in os.listdir(record_path) if i.endswith('.tfrecord')]
+            record_names = [os.path.join(record_path, i) for i in os.listdir(record_path) if i.endswith('.tfrecord')]
             if shuffle:
                 perm = np.arange(len(record_names))
                 np.random.shuffle(perm)
@@ -57,11 +57,13 @@ class DataGeneratorClass(object):
                     features = load_obj(record_name.replace('.tfrecord', '_features.pkl'))
                 if d_types is None:
                     d_types = load_obj(record_name.replace('.tfrecord', '_dtype.pkl'))
-                if os.path.exists(record_name.replace('.tfrecord','_Num_Examples.txt')):
-                    fid = open(record_name.replace('.tfrecord','_Num_Examples.txt'))
+                if os.path.exists(record_name.replace('.tfrecord', '_Num_Examples.txt')):
+                    fid = open(record_name.replace('.tfrecord', '_Num_Examples.txt'))
                     examples = fid.readline()
                     fid.close()
                     self.total_examples += int(examples)
+                else:
+                    self.total_examples += 1
             parsed_image_dataset = raw_dataset.map(return_parse_function(features))
             Decode = DecodeImagesAnnotations(d_type_dict=d_types)
             if debug:
