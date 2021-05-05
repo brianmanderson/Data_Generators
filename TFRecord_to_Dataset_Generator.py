@@ -1,9 +1,14 @@
 __author__ = 'Brian M Anderson'
 # Created on 4/7/2020
-
-from .Image_Processors_Module.src.Processors.TFDataSetProcessors import *
-from .Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
-import pickle, os, glob
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+from Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
+from Image_Processors_Module.src.Processors.TFDataSetProcessors import DecodeImagesAnnotations
+import glob
+import pickle
+import tensorflow as tf
+import numpy as np
 
 
 def load_obj(path):
