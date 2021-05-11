@@ -94,10 +94,10 @@ class DataGeneratorClass(object):
                         if data is None:
                             data = next(iter(data_set))
                         if type(data) is tuple:
-                            data = image_processor.pre_process(*data)
+                            data = image_processor.parse(*data)
                         elif data is not None:
-                            data = image_processor.pre_process(data)
-                    data_set = data_set.map(image_processor.pre_process, num_parallel_calls=self.in_parallel)
+                            data = image_processor.parse(data)
+                    data_set = data_set.map(image_processor.parse, num_parallel_calls=self.in_parallel)
                 elif type(image_processor) in [dict, set]:
                     data = None
                     value = None
