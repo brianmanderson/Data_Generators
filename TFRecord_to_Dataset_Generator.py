@@ -3,7 +3,7 @@ __author__ = 'Brian M Anderson'
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
-from Plot_And_Scroll_Images.Plot_Scroll_Images import plot_scroll_Image, plt
+from PlotScrollNumpyArrays.Plot_Scroll_Images import plot_scroll_Image, plt
 from Image_Processors_Module.src.Processors.TFDataSetProcessors import DecodeImagesAnnotations
 import glob
 import pickle
