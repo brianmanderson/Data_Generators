@@ -316,7 +316,7 @@ class Data_Set_Reader(object):
             if len(broken_up) == 1:
                 broken_up = file.split('/')
             broken_up = broken_up[-1].split('_')
-            if broken_up[-1].find('image') == 0: # Making everything back compatible with the new style of passing data
+            if broken_up[-1].find('image') == 0: # Making everything back compatible with the new style of passing Data
                 slice_num = int(broken_up[-2])
                 description = ''
                 for i in broken_up[:-2]:
@@ -380,13 +380,13 @@ class Data_Generator_Class(Sequence):
         :param by_patient: (True/False), load by 3D patient or 2D slices
         :param whole_patient: load entire patient?
         :param wanted_indexes: tuple specifying desired indexes, can be left at None
-        :param data_paths: data paths to pull from
+        :param data_paths: Data paths to pull from
         :param num_patients: if by_patient, how many patients to pull
         :param expansion: how many slices to expand above and below positive annotations
         :param shuffle: shuffle images/patients?
         :param batch_size: number of z_images, if whole_patient this is overridden
         :param save_and_reload: save in a dictionary, default True
-        :param image_processors: a list of data processors, see Image_Processors.py
+        :param image_processors: a list of Data processors, see Image_Processors.py
         :param split_data_evenly_from_paths: in beta
         :param random_start: default, other options in beta
         '''
@@ -429,7 +429,7 @@ class Data_Generator_Class(Sequence):
                 path = os.path.join(path,'Single_Images3D') #Make them all 3D
             path = os.path.normpath(path)
             if len(os.listdir(path)) == 0:
-                print('Nothing in data path:' + path)
+                print('Nothing in Data path:' + path)
             self.preload_patient_dict[path] = []
             data_reader = Data_Set_Reader(path=path, expansion=expansion, wanted_indexes=wanted_indexes)
             models[path] = data_reader
@@ -508,7 +508,7 @@ class Data_Generator_Class(Sequence):
             if len(broken_up) == 1:
                 broken_up = file.split('/')
             broken_up = broken_up[-1].split('_')
-            if broken_up[-1].find('image') == 0: # Making everything back compatible with the new style of passing data
+            if broken_up[-1].find('image') == 0: # Making everything back compatible with the new style of passing Data
                 slice_num = int(broken_up[-2])
                 description = ''
                 for i in broken_up[:-2]:
@@ -665,7 +665,7 @@ class Train_DVF_Generator(Sequence):
                  mask_images=False,multi_pool=False,polar_coordinates=False,distance_map=False,min_rows_cols = None,is_2D=False,
                  flatten=False, get_CT_images=False, min_val=-1000, max_val=300, mean_val=100, std_val=40, perturbations=None,noise=0,layers_dict=None,output_size=None):
         '''
-        :param path: Path to data
+        :param path: Path to Data
         :param save_and_load: Should we save the images to prevent loading them each time
         :param batch_size: What batch size to grab?
         :param split: Should the images come in concatentated, or as [primary,secondary]
@@ -685,7 +685,7 @@ class Train_DVF_Generator(Sequence):
         self.batch_size = batch_size
         self.save_and_load = save_and_load
         if save_and_load:
-            print('Saving and reloading data')
+            print('Saving and reloading Data')
         self.split = split
         self.layers = layers
         self.pool_base = pool_base
@@ -1001,10 +1001,10 @@ class Image_Clipping_and_Padding(Sequence):
                  bounding_box_expansion=(5,10,10), threshold_value=None, remove_liver_layer=False):
         '''
         :param layers_dict: Dictionary of layers for model, Layer_0, Layer_1, Base, etc.
-        :param generator: a data generator
-        :param return_mask: return the mask used for masking input data
+        :param generator: a Data generator
+        :param return_mask: return the mask used for masking input Data
         :param liver_box: use a bounding box
-        :param mask_image: mask the image data
+        :param mask_image: mask the image Data
         :param bounding_box_expansion: z, x, y expansions for bounding box
         '''
         self.bounding_box_expansion = bounding_box_expansion

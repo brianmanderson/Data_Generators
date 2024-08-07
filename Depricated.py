@@ -114,7 +114,7 @@ class image_loader_old(object):
             if len(broken_up) == 1:
                 broken_up = file.split('/')
             broken_up = broken_up[-1].split('_')
-            if broken_up[-1].find('image') == 0: # Making everything back compatible with the new style of passing data
+            if broken_up[-1].find('image') == 0: # Making everything back compatible with the new style of passing Data
                 slice_num = int(broken_up[-2])
                 description = ''
                 for i in broken_up[:-2]:
