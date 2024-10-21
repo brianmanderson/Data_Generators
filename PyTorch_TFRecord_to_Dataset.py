@@ -5,7 +5,6 @@ import sys
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from PlotScrollNumpyArrays.Plot_Scroll_Images import plot_scroll_Image, plt
 import pickle
-from tfrecord.torch.dataset import TFRecordDataset
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 
