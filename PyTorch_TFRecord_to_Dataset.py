@@ -6,6 +6,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from PlotScrollNumpyArrays.Plot_Scroll_Images import plot_scroll_Image, plt
 import pickle
 from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
 import numpy as np
 
 
@@ -21,7 +22,8 @@ def load_obj(path):
 
 
 class PyTorchDataset(Dataset):
-    def __init__(self, record_paths, transform=None, target_transform=None):
+    def __init__(self, record_paths, transform=None, target_transform=None,
+                 debug=False):
         """
         :param record_paths: List of paths to a folder full of .pkl files
         :param in_parallel: Boolean, perform the actions in parallel?
@@ -29,6 +31,7 @@ class PyTorchDataset(Dataset):
         :param shuffle: Boolean, shuffle the record names?
         :param debug: Boolean, debug process
         """
+        self.debug = debug
         self.transform = transform
         self.target_transform = target_transform
         assert record_paths is not None, 'Need to pass a list of record names!'
@@ -42,9 +45,12 @@ class PyTorchDataset(Dataset):
     def __getitem__(self, index):
         record = load_obj(self.record_names[index])
         if self.transform:
-            for t in self.transform:
-                print(t)
-                record = t.parse(record)
+            if self.debug:
+                for t in self.transform:
+                    print(t)
+                    record = t(record)
+            else:
+                record = transforms.Compose(self.transform)(record)
         return record
 
     def __len__(self):
