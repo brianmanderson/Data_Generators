@@ -21,8 +21,7 @@ def load_obj(path):
 
 
 class PyTorchDataset(Dataset):
-    def __init__(self, record_paths, shuffle=False, debug=False,
-                 transform=None, target_transform=None):
+    def __init__(self, record_paths, transform=None, target_transform=None):
         """
         :param record_paths: List of paths to a folder full of .pkl files
         :param in_parallel: Boolean, perform the actions in parallel?
@@ -42,7 +41,11 @@ class PyTorchDataset(Dataset):
 
     def __getitem__(self, index):
         record = load_obj(self.record_names[index])
-        return record['ct_array'], record['mask_array']
+        if self.transform:
+            for t in self.transform:
+                print(t)
+                record = t.parse(record)
+        return record
 
     def __len__(self):
         return len(self.record_names)
