@@ -30,19 +30,19 @@ def return_parse_function(image_feature_description):
 
 
 class DataGeneratorClass(object):
-    def __init__(self, record_paths=None, in_parallel=True, delete_old_cache=False, shuffle=False, debug=False):
+    def __init__(self, record_paths=None, in_parallel=-1, delete_old_cache=False, shuffle=False, debug=False):
         """
         :param record_paths: List of paths to a folder full of records files
-        :param in_parallel: Boolean, perform the actions in parallel?
+        :param in_parallel: -1 is auto tune, None is None
         :param delete_old_cache: Boolean, delete the previous cache?
         :param shuffle: Boolean, shuffle the record names?
         :param debug: Boolean, debug process
         """
         self.delete_old_cache = delete_old_cache
-        if in_parallel:
-            self.in_parallel = tf.data.experimental.AUTOTUNE
+        if in_parallel == -1:
+            self.in_parallel = tf.data.AUTOTUNE
         else:
-            self.in_parallel = None
+            self.in_parallel = in_parallel
         assert record_paths is not None, 'Need to pass a list of record names!'
         if not isinstance(record_paths, list):
             raise ValueError("Provide a list of record paths.")
@@ -52,13 +52,17 @@ class DataGeneratorClass(object):
         for record_path in record_paths:
             assert os.path.isdir(record_path), 'Pass a directory, not a tfrecord\n{}'.format(record_path)
             record_names += [os.path.join(record_path, i) for i in os.listdir(record_path) if i.endswith('.tfrecord')]
-        raw_dataset = tf.data.Dataset.list_files(record_names, shuffle=shuffle)
-        raw_dataset = raw_dataset.interleave(
-            lambda filename: tf.data.TFRecordDataset(filename, num_parallel_reads=self.in_parallel),
-            cycle_length=4,
-            num_parallel_calls=tf.data.experimental.AUTOTUNE)
-        
-        raw_dataset = raw_dataset.repeat()
+        tfrecord_files = tf.data.Dataset.list_files(record_names)
+        tfrecord_files = tfrecord_files.repeat()
+        if shuffle:
+            tfrecord_files = tfrecord_files.shuffle(len(record_names))
+        # raw_dataset = tfrecord_files.interleave(
+        #     lambda filename: tf.data.TFRecordDataset(filename, num_parallel_reads=),
+        #     cycle_length=2,  # Number of files to read concurrently
+        #     num_parallel_calls=self.in_parallel
+        # )
+        raw_dataset = tf.data.TFRecordDataset(tfrecord_files, num_parallel_reads=self.in_parallel)
+
         # raw_dataset = tf.data.TFRecordDataset(record_names, num_parallel_reads=self.in_parallel)
         features = None
         d_types = None
@@ -74,7 +78,8 @@ class DataGeneratorClass(object):
                 self.total_examples += int(examples)
             else:
                 self.total_examples += 1
-        parsed_image_dataset = raw_dataset.map(return_parse_function(features))
+        parsed_image_dataset = raw_dataset.map(tf.function(return_parse_function(features),),
+                                               num_parallel_calls=self.in_parallel)
         Decode = DecodeImagesAnnotations(d_type_dict=d_types)
         if debug:
             data = next(iter(parsed_image_dataset))
@@ -125,7 +130,10 @@ class DataGeneratorClass(object):
                     elif 'unbatch' in image_processor:
                         self.data_set = self.data_set.unbatch()
                     elif 'prefetch' in image_processor:
-                        self.data_set = self.data_set.prefetch(tf.data.experimental.AUTOTUNE)
+                        if value is not None:
+                            self.data_set = self.data_set.prefetch(value)
+                        else:
+                            self.data_set = self.data_set.prefetch(self.in_parallel)
                 else:
                     raise ModuleNotFoundError('Need to provide either a image processor, dict, or set!')
 
