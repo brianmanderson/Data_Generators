@@ -30,7 +30,8 @@ def return_parse_function(image_feature_description):
 
 
 class DataGeneratorClass(object):
-    def __init__(self, record_paths=None, in_parallel=-1, delete_old_cache=False, shuffle=False, debug=False):
+    def __init__(self, record_paths=None, in_parallel=-1, delete_old_cache=False, shuffle=False, debug=False,
+                 repeat=True):
         """
         :param record_paths: List of paths to a folder full of records files
         :param in_parallel: -1 is auto tune, None is None
@@ -53,7 +54,8 @@ class DataGeneratorClass(object):
             assert os.path.isdir(record_path), 'Pass a directory, not a tfrecord\n{}'.format(record_path)
             record_names += [os.path.join(record_path, i) for i in os.listdir(record_path) if i.endswith('.tfrecord')]
         tfrecord_files = tf.data.Dataset.list_files(record_names)
-        tfrecord_files = tfrecord_files.repeat()
+        if repeat:
+            tfrecord_files = tfrecord_files.repeat()
         if shuffle:
             tfrecord_files = tfrecord_files.shuffle(len(record_names))
         # raw_dataset = tfrecord_files.interleave(
@@ -103,15 +105,16 @@ class DataGeneratorClass(object):
                             data = image_processor.parse(data)
                     else:
                         processor = tf.function(image_processor.parse)
-                    if True:
-                        self.data_set = self.data_set.map(
-                            lambda *features: processor(*features) if isinstance(features[0], dict) else
-                            (processor(*features) if len(features) > 1 else processor(features[0])),
-                            num_parallel_calls=self.in_parallel)
-                    elif not is_tuple:
-                        self.data_set = self.data_set.map(lambda features: processor(features), num_parallel_calls=self.in_parallel)
-                    else:
-                        self.data_set = self.data_set.map(lambda features: processor(*features), num_parallel_calls=self.in_parallel)
+                    self.data_set = self.data_set.map(processor, num_parallel_calls=self.in_parallel)
+                    # if True:
+                    #     self.data_set = self.data_set.map(
+                    #         lambda *features: processor(*features) if isinstance(features[0], dict) else
+                    #         (processor(*features) if len(features) > 1 else processor(features[0])),
+                    #         num_parallel_calls=self.in_parallel)
+                    # elif not is_tuple:
+                    #     self.data_set = self.data_set.map(lambda features: processor(features), num_parallel_calls=self.in_parallel)
+                    # else:
+                    #     self.data_set = self.data_set.map(lambda features: processor(*features), num_parallel_calls=self.in_parallel)
                 elif type(image_processor) in [dict, set]:
                     data = None
                     value = None
@@ -137,6 +140,8 @@ class DataGeneratorClass(object):
                             self.data_set = self.data_set.cache(path)
                     elif 'unbatch' in image_processor:
                         self.data_set = self.data_set.unbatch()
+                    elif 'repeat' in image_processor:
+                        self.data_set = self.data_set.repeat()
                     elif 'prefetch' in image_processor:
                         if value is not None:
                             self.data_set = self.data_set.prefetch(value)
