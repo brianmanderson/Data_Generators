@@ -44,6 +44,9 @@ class DataGeneratorClass(object):
             self.in_parallel = tf.data.AUTOTUNE
         else:
             self.in_parallel = in_parallel
+        self.synchronus = None
+        if in_parallel == 1:
+            self.synchronus = True
         assert record_paths is not None, 'Need to pass a list of record names!'
         if not isinstance(record_paths, list):
             raise ValueError("Provide a list of record paths.")
@@ -81,12 +84,12 @@ class DataGeneratorClass(object):
             else:
                 self.total_examples += 1
         parsed_image_dataset = raw_dataset.map(tf.function(return_parse_function(features),),
-                                               num_parallel_calls=self.in_parallel)
+                                               num_parallel_calls=self.in_parallel, synchronous=self.synchronus)
         Decode = DecodeImagesAnnotations(d_type_dict=d_types)
         if debug:
             data = next(iter(parsed_image_dataset))
             data = Decode.parse(image_features=data)
-        self.data_set = parsed_image_dataset.map(tf.function(Decode.parse), num_parallel_calls=self.in_parallel)
+        self.data_set = parsed_image_dataset.map(tf.function(Decode.parse), num_parallel_calls=self.in_parallel, synchronous=self.synchronus)
 
     def compile_data_set(self, image_processors=None, debug=False):
         data = None
@@ -105,7 +108,7 @@ class DataGeneratorClass(object):
                             data = image_processor.parse(data)
                     else:
                         processor = tf.function(image_processor.parse)
-                    self.data_set = self.data_set.map(processor, num_parallel_calls=self.in_parallel)
+                    self.data_set = self.data_set.map(processor, num_parallel_calls=self.in_parallel, synchronous=self.synchronus)
                     # if True:
                     #     self.data_set = self.data_set.map(
                     #         lambda *features: processor(*features) if isinstance(features[0], dict) else
