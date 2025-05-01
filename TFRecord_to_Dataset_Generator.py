@@ -11,6 +11,34 @@ import tensorflow as tf
 import numpy as np
 
 
+def delete_folder_and_contents(path):
+    """
+    Delete the folder at `path` and all of its contents.
+
+    Args:
+        path: Path to the directory to delete.
+
+    Raises:
+        FileNotFoundError: If `path` does not exist.
+        OSError: If a file or directory cannot be removed.
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"No such file or directory: '{path}'")
+
+    # Walk the tree bottom-up so we delete files before their parent directories
+    for root, dirs, files in os.walk(path, topdown=False):
+        # Delete all files in this directory
+        for filename in files:
+            file_path = os.path.join(root, filename)
+            os.remove(file_path)
+        # Delete all empty subdirectories
+        for dirname in dirs:
+            dir_path = os.path.join(root, dirname)
+            os.rmdir(dir_path)
+    # Finally, delete the now-empty root directory
+    os.rmdir(path)
+
+
 def load_obj(path):
     if path.find('.pkl') == -1:
         path += '.pkl'
@@ -30,8 +58,7 @@ def return_parse_function(image_feature_description):
 
 
 class DataGeneratorClass(object):
-    def __init__(self, record_paths=None, in_parallel=-1, delete_old_cache=False, shuffle=False, debug=False,
-                 repeat=True):
+    def __init__(self, record_paths=None, in_parallel=-1, delete_old_cache=False, shuffle=False, debug=False):
         """
         :param record_paths: List of paths to a folder full of records files
         :param in_parallel: -1 is auto tune, None is None
@@ -57,8 +84,6 @@ class DataGeneratorClass(object):
             assert os.path.isdir(record_path), 'Pass a directory, not a tfrecord\n{}'.format(record_path)
             record_names += [os.path.join(record_path, i) for i in os.listdir(record_path) if i.endswith('.tfrecord')]
         tfrecord_files = tf.data.Dataset.list_files(record_names)
-        if repeat:
-            tfrecord_files = tfrecord_files.repeat()
         if shuffle:
             tfrecord_files = tfrecord_files.shuffle(len(record_names))
         # raw_dataset = tfrecord_files.interleave(
@@ -112,8 +137,6 @@ class DataGeneratorClass(object):
                             data = next(iter(self.data_set))
                         if data is not None:
                             data = image_processor.parse(data)
-                    else:
-                        processor = tf.function(image_processor.parse)
                     if self.synchronus is None:
                         self.data_set = self.data_set.map(processor, num_parallel_calls=self.in_parallel)
                     else:
@@ -137,19 +160,6 @@ class DataGeneratorClass(object):
                         assert value is not None, "You need to provide a batch size with {'batch':batch_size}"
                         self.total_examples = self.total_examples//value
                         self.data_set = self.data_set.batch(value, drop_remainder=False)
-                    elif 'cache' in image_processor:
-                        if value is None:
-                            self.data_set = self.data_set.cache()
-                        else:
-                            assert not os.path.isfile(value), 'Pass a path to {cache:path}, not a file!'
-                            if not os.path.exists(value):
-                                os.makedirs(value)
-                            if self.delete_old_cache:
-                                existing_files = glob.glob(os.path.join(value,'*cache.tfrecord*')) # Delete previous ones
-                                for file in existing_files:
-                                    os.remove(file)
-                            path = os.path.join(value,'cache.tfrecord')
-                            self.data_set = self.data_set.cache(path)
                     elif 'unbatch' in image_processor:
                         self.data_set = self.data_set.unbatch()
                     elif 'repeat' in image_processor:
@@ -159,6 +169,25 @@ class DataGeneratorClass(object):
                             self.data_set = self.data_set.prefetch(value)
                         else:
                             self.data_set = self.data_set.prefetch(self.in_parallel)
+                    elif 'shuffle' in image_processor:
+                        if value is not None:
+                            self.data_set = self.data_set.shuffle(value)
+                        else:
+                            self.data_set = self.data_set.shuffle()
+                    elif 'save' in image_processor or 'cache' in image_processor or 'snapshot' in image_processor:
+                        assert value is not None, "Need to provide a path for cache/save/snapshot"
+                        assert not os.path.isfile(value), f'Pass a path to {value}, not a file!'
+                        if not str(value).endswith('_cache'):
+                            value = os.path.join(value, '_cache')
+                        if os.path.exists(value):
+                            delete_folder_and_contents(value)
+                        os.makedirs(value)
+                        if 'save' in image_processor:
+                            self.data_set = self.data_set.save(value)
+                        elif 'cache' in image_processor:
+                            self.data_set = self.data_set.cache(value)
+                        elif 'snapshot' in image_processor:
+                            self.data_set = self.data_set.snapshot(value)
                 else:
                     raise ModuleNotFoundError('Need to provide either a image processor, dict, or set!')
 
