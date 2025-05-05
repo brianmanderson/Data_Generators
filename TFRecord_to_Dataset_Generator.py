@@ -178,11 +178,12 @@ class DataGeneratorClass(object):
                         assert value is not None, "Need to provide a path for cache/save/snapshot"
                         assert not os.path.isfile(value), f'Pass a path to {value}, not a file!'
                         value = os.path.join(value, 'cache_folder')
-                        if os.path.exists(value):
+                        if os.path.exists(value) and self.delete_old_cache:
                             delete_folder_and_contents(value)
                         if not str(value).endswith('_cache'):
                             value = os.path.join(value, '_cache')
-                        os.makedirs(value)
+                        if not os.path.exists(value):
+                            os.makedirs(value)
                         if 'save' in image_processor:
                             self.data_set = self.data_set.save(value)
                         elif 'cache' in image_processor:
